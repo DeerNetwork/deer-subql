@@ -1,0 +1,25 @@
+specVersion: 0.2.0
+name: deer-subql
+version: 0.1.0
+description: subql for deer network
+repository: https://github.com/DeerNetwork/deer-subql.git
+schema:
+  file: ./schema.graphql
+network:
+  endpoint: 'wss://mainnet-ws.deernetwork.vip'
+  genesisHash: "0x037c59d6ce8a86644f2b56caf38a04635a8d74ef435e49045ea66ea5e4e18faa"
+dataSources:
+  - kind: substrate/Runtime
+    startBlock: 1
+    mapping:
+      file: ./dist/index.js
+      handlers:
+        - handler: handleBlock
+          kind: substrate/BlockHandler
+        - handler: handleEvent
+          kind: substrate/EventHandler
+          filter:
+            module: balances
+            method: Deposit
+        - handler: handleCall
+          kind: substrate/CallHandler
