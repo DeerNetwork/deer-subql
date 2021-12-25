@@ -18,9 +18,12 @@
   ],
   "license": "MIT",
   "devDependencies": {
+    "@deernetwork/type-definitions": "^0.4.6",
     "@polkadot/api": "^6",
+    "@subql/cli": "latest",
+    "@subql/node": "latest",
+    "@subql/query": "latest",
     "@subql/types": "latest",
-    "typescript": "^4.1.3",
-    "@subql/cli": "latest"
+    "typescript": "^4.1.3"
   }
 }

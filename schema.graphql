@@ -1,17 +1,85 @@
-type StarterEntity @entity {
+type NFTClass @entity {
+  id: ID!
+  classId: Int!
+  owner: String! @index
+  deposit: BigInt!
+  permission: Int!
+  metadata: String!
+  totalTokens: Int!
+  totalIssuance: Int!
+  royaltyRate: Float!
+}
 
-  id: ID! #id is a required field
+type NFTToken @entity {
+  id: ID!
+  class: NFTClass! @index
+  tokenId: Int!
+  nfts: [NFTokenOWner] @derivedFrom(field: "token")
+  metadata: String!
+  deposit: BigInt!
+  quantity: Int!
+  consumers: Int!
+  royaltyRate: Float!
+  royaltyBeneficiary: String!
+}
 
-  field1: Int!
+type NFTokenOWner @entity {
+  id: ID!
+  token: NFTToken! @index
+  who: String! @index
+  free: Int!
+  reserved: Int!
+}
 
-  field2: String #filed2 is an optional field
+type NFTAuction @entity {
+  id: ID!
+  auctionId: Int!
+  currentBid: NFTAuctionBid
+  owner: String!
+  token: NFTToken! @index
+  quantity: Int!
+  dutch: DutchAuctionDetail
+  english: EnglishAuctionDetail
+  deposit: BigInt!
+  createdAt: Int!
+  openAt: Int!
+  deadline: Int!
+}
 
-  field3: BigInt
+type DutchAuctionDetail @jsonField {
+  mixPrice: BigInt!
+  maxPrice: BigInt!
+}
 
-  field4: Date
+type EnglishAuctionDetail @jsonField {
+  initPrice: BigInt!
+  minRaisePrice: BigInt!
+}
 
-  field5: Boolean
+type NFTAuctionBid @entity {
+  id: ID!
+  token: NFTToken! @index
+  auction: NFTAuction! @index
+  price: BigInt!
+  bidAt: Int!
+}
 
+type NFTOrder @entity {
+  id: ID!
+  orderId: Int!
+  token: NFTToken! @index
+  quantity: Int!
+  price: BigInt!
+  deposit: BigInt!
+  deadline: Int
+}
 
-
+type NFTOffer @entity {
+  id: ID!
+  offerId: Int!
+  token: NFTToken! @index
+  quantity: Int!
+  price: BigInt!
+  deposit: BigInt!
+  deadline: Int
 }
