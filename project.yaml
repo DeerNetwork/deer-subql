@@ -16,6 +16,19 @@ dataSources:
     mapping:
       file: ./dist/index.js
       handlers:
+        # pallet nft
+        - handler: handleNftCreated
+          kind: substrate/EventHandler
+          filter:
+            module: nft
+            method: Created
+            specVersion: [100, 300]
+        - handler: handleNftIssued
+          kind: substrate/EventHandler
+          filter:
+            module: nft
+            method: Issued
+            specVersion: [100, 300]
         - handler: handleNftCreatedClass
           kind: substrate/EventHandler
           filter:
@@ -26,7 +39,7 @@ dataSources:
           filter:
             module: nft
             method: MintedToken
-        - handler: handleNftMintedToken
+        - handler: handleNftBurnedToken
           kind: substrate/EventHandler
           filter:
             module: nft
@@ -36,88 +49,121 @@ dataSources:
           filter:
             module: nft
             method: TransferredToken
-      - handler: handleNftUpdateTokenRoyalty
-        kind: substrate/CallHandler
-        filter:
-          module: nft
-          method: updateTokenRoyalty
-          success: true
-      - handler: handleNftUpdateTokenRoyaltyBeneficiary
-        kind: substrate/CallHandler
-        filter:
-          module: nft
-          method: updateTokenRoyaltyBeneficiary
-          success: true
+        - handler: handleNftUpdateTokenRoyalty
+          kind: substrate/CallHandler
+          filter:
+            module: nft
+            method: updateTokenRoyalty
+            success: true
+        - handler: handleNftUpdateTokenRoyaltyBeneficiary
+          kind: substrate/CallHandler
+          filter:
+            module: nft
+            method: updateTokenRoyaltyBeneficiary
+            success: true
 
-        - handler: handleCreatedOrder
-          kind: substrate/EventHandler
-          filter:
-            module: nftOrder
-            method: CreatedOrder
-        - handler: handleDealedOrder
-          kind: substrate/EventHandler
-          filter:
-            module: nftOrder
-            method: DealedOrder
-        - handler: handleRemovedOrder
-          kind: substrate/EventHandler
-          filter:
-            module: nftOrder
-            method: RemovedOrder
-        - handler: handleCreatedOffer
-          kind: substrate/EventHandler
-          filter:
-            module: nftOffer
-            method: CreatedOffer
-        - handler: handleDealedOffer
-          kind: substrate/EventHandler
-          filter:
-            module: nftOffer
-            method: DealedOffer
-        - handler: handleRemovedOffer
-          kind: substrate/EventHandler
-          filter:
-            module: nftOffer
-            method: RemovedOffer
+        # # pallet nftOrder
+        # - handler: handleNftOrderSelling
+        #   kind: substrate/EventHandler
+        #   filter:
+        #     module: nftOrder
+        #     method: Selling
+        #     specVersion: [100, 300]
+        # - handler: handleNftOrderDealed
+        #   kind: substrate/EventHandler
+        #   filter:
+        #     module: nftOrder
+        #     method: Dealed
+        #     specVersion: [100, 300]
+        # - handler: handleNftOrderRemoved
+        #   kind: substrate/EventHandler
+        #   filter:
+        #     module: nftOrder
+        #     method: Removed
+        #     specVersion: [100, 300]
+        # - handler: handleCreatedNftOrder
+        #   kind: substrate/EventHandler
+        #   filter:
+        #     module: nftOrder
+        #     method: CreatedOrder
+        # - handler: handleDealedNftOrder
+        #   kind: substrate/EventHandler
+        #   filter:
+        #     module: nftOrder
+        #     method: DealedOrder
+        # - handler: handleRemovedNftOrder
+        #   kind: substrate/EventHandler
+        #   filter:
+        #     module: nftOrder
+        #     method: RemovedOrder
+        # - handler: handleCreatedNftOffer
+        #   kind: substrate/EventHandler
+        #   filter:
+        #     module: nftOffer
+        #     method: CreatedOffer
+        # - handler: handleDealedNftOffer
+        #   kind: substrate/EventHandler
+        #   filter:
+        #     module: nftOffer
+        #     method: DealedOffer
+        # - handler: handleRemovedNftOffer
+        #   kind: substrate/EventHandler
+        #   filter:
+        #     module: nftOffer
+        #     method: RemovedOffer
 
-
-        - handler: handleCreatedDutchAuction
-          kind: substrate/EventHandler
-          filter:
-            module: nftAuction
-            method: CreatedDutchAuction
-        - handler: handleBidDutchAuction
-          kind: substrate/EventHandler
-          filter:
-            module: nftAuction
-            method: BidDutchAuction
-        - handler: handleCanceledDutchAuction
-          kind: substrate/EventHandler
-          filter:
-            module: nftAuction
-            method: CanceledDutchAuction
-        - handler: handleRedeemedDutchAuction
-          kind: substrate/EventHandler
-          filter:
-            module: nftAuction
-            method: RedeemedDutchAuction
-        - handler: handleCreatedEnglishAuction
-          kind: substrate/EventHandler
-          filter:
-            module: nftAuction
-            method: CreatedEnglishAuction
-        - handler: handleBidEnglishAuction
-          kind: substrate/EventHandler
-          filter:
-            module: nftAuction
-            method: BidEnglishAuction
-        - handler: handleCanceledEnglishAuction
-          kind: substrate/EventHandler
-          filter:
-            module: nftAuction
-            method: CanceledEnglishAuction
-        - handler: handleRedeemedEnglishAuction
-          kind: substrate/EventHandler
-          filter:
-            module: nftAuction
-            method: RedeemedEnglishAuction
+        # # pallet nftAuction
+        # - handler: handleCreatedDutchAuction
+        #   kind: substrate/EventHandler
+        #   filter:
+        #     module: nftAuction
+        #     method: CreatedDutchAuction
+        #     specVersion: [100, 300]
+        # - handler: handleCreatedEnglishAuction
+        #   kind: substrate/EventHandler
+        #   filter:
+        #     module: nftAuction
+        #     method: CreatedEnglishAuction
+        #     specVersion: [100, 300]
+        # - handler: handleCreatedDutchAuctionV2
+        #   kind: substrate/EventHandler
+        #   filter:
+        #     module: nftAuction
+        #     method: CreatedDutchAuction
+        #     specVersion: [400]
+        # - handler: handleBidDutchAuction
+        #   kind: substrate/EventHandler
+        #   filter:
+        #     module: nftAuction
+        #     method: BidDutchAuction
+        # - handler: handleCanceledDutchAuction
+        #   kind: substrate/EventHandler
+        #   filter:
+        #     module: nftAuction
+        #     method: CanceledDutchAuction
+        # - handler: handleRedeemedDutchAuction
+        #   kind: substrate/EventHandler
+        #   filter:
+        #     module: nftAuction
+        #     method: RedeemedDutchAuction
+        # - handler: handleCreatedEnglishAuctionV2
+        #   kind: substrate/EventHandler
+        #   filter:
+        #     module: nftAuction
+        #     method: CreatedEnglishAuction
+        #     specVersion: [400]
+        # - handler: handleBidEnglishAuction
+        #   kind: substrate/EventHandler
+        #   filter:
+        #     module: nftAuction
+        #     method: BidEnglishAuction
+        # - handler: handleCanceledEnglishAuction
+        #   kind: substrate/EventHandler
+        #   filter:
+        #     module: nftAuction
+        #     method: CanceledEnglishAuction
+        # - handler: handleRedeemedEnglishAuction
+        #   kind: substrate/EventHandler
+        #   filter:
+        #     module: nftAuction
+        #     method: RedeemedEnglishAuction

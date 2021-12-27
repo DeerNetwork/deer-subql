@@ -1,43 +1,66 @@
-type NFTClass @entity {
+type NftClass @entity {
   id: ID!
-  classId: Int!
   owner: String! @index
   deposit: BigInt!
   permission: Int!
-  metadata: String!
-  totalTokens: Int!
-  totalIssuance: Int!
+  metadata: NftMetadata
+  metadataRaw: String
+  totalTokens: BigInt!
+  totalIssuance: BigInt!
   royaltyRate: Float!
 }
 
-type NFTToken @entity {
+type NftToken @entity {
   id: ID!
-  class: NFTClass! @index
+  class: NftClass! @index
   tokenId: Int!
-  nfts: [NFTokenOWner] @derivedFrom(field: "token")
-  metadata: String!
+  # creator: String!
+  owners: [NftTokenOwner] @derivedFrom(field: "token")
+  burns: [NftTokenBurn] @derivedFrom(field: "token")
+  isBurned: Boolean!
+  metadata: NftMetadata
+  metadataRaw: String
   deposit: BigInt!
-  quantity: Int!
+  quantity: BigInt!
   consumers: Int!
   royaltyRate: Float!
   royaltyBeneficiary: String!
 }
 
-type NFTokenOWner @entity {
-  id: ID!
-  token: NFTToken! @index
-  who: String! @index
-  free: Int!
-  reserved: Int!
+type NftMetadata @jsonField {
+  name: String
 }
 
-type NFTAuction @entity {
+type NftTokenOwner @entity {
+  id: ID!
+  token: NftToken! @index
+  who: String! @index
+  free: BigInt!
+  reserved: BigInt!
+}
+
+type NftTokenBurn @entity {
+  id: ID!
+  token: NftToken! @index
+  who: String! @index
+  quantity: BigInt!
+}
+
+type NftTokenTransfer @entity {
+  id: ID!
+  token: NftToken! @index
+  from: String! @index
+  to: String! @index
+  quantity: BigInt!
+}
+
+type NftAuction @entity {
   id: ID!
   auctionId: Int!
-  currentBid: NFTAuctionBid
+  currentBid: NftAuctionBid
   owner: String!
-  token: NFTToken! @index
-  quantity: Int!
+  token: NftToken! @index
+  quantity: BigInt!
   dutch: DutchAuctionDetail
   english: EnglishAuctionDetail
   deposit: BigInt!
@@ -56,29 +79,28 @@ type EnglishAuctionDetail @jsonField {
   minRaisePrice: BigInt!
 }
 
-type NFTAuctionBid @entity {
+type NftAuctionBid @entity {
   id: ID!
-  token: NFTToken! @index
-  auction: NFTAuction! @index
+  token: NftToken! @index
   price: BigInt!
   bidAt: Int!
 }
 
-type NFTOrder @entity {
+type NftOrder @entity {
   id: ID!
   orderId: Int!
-  token: NFTToken! @index
-  quantity: Int!
+  token: NftToken! @index
+  quantity: BigInt!
   price: BigInt!
   deposit: BigInt!
   deadline: Int
 }
 
-type NFTOffer @entity {
+type NftOffer @entity {
   id: ID!
   offerId: Int!
-  token: NFTToken! @index
-  quantity: Int!
+  token: NftToken! @index
+  quantity: BigInt!
   price: BigInt!
   deposit: BigInt!
   deadline: Int
