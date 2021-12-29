@@ -1,107 +1,232 @@
-type NftClass @entity {
-  id: ID!
-  owner: String! @index
-  deposit: BigInt!
-  permission: Int!
-  metadata: NftMetadata
-  metadataRaw: String
-  totalTokens: BigInt!
-  totalIssuance: BigInt!
-  royaltyRate: Float!
-}
-
-type NftToken @entity {
-  id: ID!
-  class: NftClass! @index
-  tokenId: Int!
-  # creator: String!
-  owners: [NftTokenOwner] @derivedFrom(field: "token")
-  burns: [NftTokenBurn] @derivedFrom(field: "token")
-  isBurned: Boolean!
-  metadata: NftMetadata
-  metadataRaw: String
-  deposit: BigInt!
-  quantity: BigInt!
-  consumers: Int!
-  royaltyRate: Float!
-  royaltyBeneficiary: String!
+type KVData @jsonField {
+  key: String
+  value: String
+  type: String
 }
 
 type NftMetadata @jsonField {
   name: String
 }
 
+type DutchAuctionDetail @jsonField {
+  mixPrice: BigInt
+  maxPrice: BigInt
+}
+
+type EnglishAuctionDetail @jsonField {
+  initPrice: BigInt
+  minRaisePrice: BigInt
+}
+
+type Block @entity {
+  id: ID!
+  number: BigInt
+  timestamp: Date
+  parentHash: String
+  specVersion: String
+  stateRoot: String
+  extrinsicRoot: String
+
+  extrinsics: [Extrinsic] @derivedFrom(field: "block")
+  events: [Event] @derivedFrom(field: "block")
+}
+
+type Extrinsic @entity {
+  id: ID!
+
+  method: String
+  section: String
+  args: [KVData]
+  signer: Account
+  nonce: BigInt
+  timestamp: Date
+  signature: String
+  tip: String
+  isSigned: Boolean
+  isSuccess: Boolean
+
+  block: Block
+  events: [Event] @derivedFrom(field: "extrinsic")
+  calls: [Call] @derivedFrom(field: "extrinsic")
+}
+
+type Call @entity {
+  id: ID!
+
+  section: String
+  method: String
+  args:[KVData]
+  timestamp: Date
+  isSuccess: Boolean
+
+  signer: Account
+  extrinsic: Extrinsic
+  parentCall: Call
+
+  calls: [Call] @derivedFrom(field: "parentCall")
+}
+
+type Event @entity {
+  id: ID!
+
+  index: Int
+  section: String
+  method: String
+  data: [KVData]
+
+  timestamp: Date
+  blockNumber: BigInt
+  block: Block
+  extrinsic: Extrinsic
+}
+
+type Account @entity {
+  id: ID!
+
+  txCount: BigInt
+  createAtBlock: Block
+
+  extrinsics: [Extrinsic] @derivedFrom(field: "signer")
+  calls: [Call] @derivedFrom(field: "signer")
+  transferIn: [Transfer] @derivedFrom(field: "to")
+  transferOut: [Transfer] @derivedFrom(field: "from")
+}
+
+type Transfer @entity {
+  id: ID!
+
+  from: Account
+  to: Account
+  amount: String
+  amountInUSD: String
+
+  extrinsic: Extrinsic
+  call: Call
+  timestamp: Date
+  isSuccess: Boolean
+}
+
+type NftClass @entity {
+  id: ID!
+
+  owner: Account
+
+  deposit: BigInt
+  permission: Int
+  metadata: NftMetadata
+  metadataRaw: String
+  totalTokens: BigInt
+  totalIssuance: BigInt
+  royaltyRate: Float
+}
+
+type NftToken @entity {
+  id: ID!
+
+  class: NftClass
+  creator: Account
+
+  localTokenId: String
+  metadata: NftMetadata
+  metadataRaw: String
+  deposit: BigInt
+  quantity: BigInt
+  consumers: Int
+  royaltyRate: Float
+  royaltyBeneficiary: String
+
+  owners: [NftTokenOwner] @derivedFrom(field: "token")
+  burns: [NftTokenBurn] @derivedFrom(field: "token")
+}
+
+
 type NftTokenOwner @entity {
   id: ID!
-  token: NftToken! @index
-  who: String! @index
-  free: BigInt!
-  reserved: BigInt!
+
+  owner: Account
+  token: NftToken
+
+  free: BigInt
+  reserved: BigInt
 }
 
 type NftTokenBurn @entity {
   id: ID!
-  token: NftToken! @index
-  who: String! @index
-  quantity: BigInt!
+
+  owner: Account
+  token: NftToken
+
+  quantity: BigInt
+
+  extrinsic: Extrinsic
+  timestamp: Date
 }
 
 type NftTokenTransfer @entity {
   id: ID!
-  token: NftToken! @index
-  from: String! @index
-  to: String! @index
-  quantity: BigInt!
+
+  token: NftToken
+  from: Account
+  to: Account
+
+  quantity: BigInt
+  reason: String
+
+  extrinsic: Extrinsic
+  timestamp: Date
 }
 
 type NftAuction @entity {
   id: ID!
-  auctionId: Int!
+
+  owner: Account
+  token: NftToken
   currentBid: NftAuctionBid
-  owner: String!
-  token: NftToken! @index
-  quantity: BigInt!
+
+  auctionId: Int
+  quantity: BigInt
   dutch: DutchAuctionDetail
   english: EnglishAuctionDetail
-  deposit: BigInt!
-  createdAt: Int!
-  openAt: Int!
-  deadline: Int!
-}
-
-type DutchAuctionDetail @jsonField {
-  mixPrice: BigInt!
-  maxPrice: BigInt!
-}
-
-type EnglishAuctionDetail @jsonField {
-  initPrice: BigInt!
-  minRaisePrice: BigInt!
+  deposit: BigInt
+  createdAt: Int
+  openAt: Int
+  deadline: Int
 }
 
 type NftAuctionBid @entity {
   id: ID!
-  token: NftToken! @index
-  price: BigInt!
-  bidAt: Int!
+
+  bidder: Account
+  token: NftToken
+
+  price: BigInt
+  bidAt: Int
+
+  extrinsic: Extrinsic
+  timestamp: Date
 }
 
 type NftOrder @entity {
   id: ID!
-  orderId: Int!
-  token: NftToken! @index
-  quantity: BigInt!
-  price: BigInt!
-  deposit: BigInt!
+
+  who: Account
+  token: NftToken
+
+  quantity: BigInt
+  price: BigInt
+  deposit: BigInt
   deadline: Int
 }
 
 type NftOffer @entity {
   id: ID!
-  offerId: Int!
-  token: NftToken! @index
-  quantity: BigInt!
-  price: BigInt!
-  deposit: BigInt!
+
+  who: Account
+  token: NftToken
+
+  offerId: Int
+  quantity: BigInt
+  price: BigInt
+  deposit: BigInt
   deadline: Int
 }

@@ -1,2 +1,2 @@
 //Exports all handler functions
-export * from "./mappings/mappingNft";
+export * from "./mappings/mappingHandlers";
