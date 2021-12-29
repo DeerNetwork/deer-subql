@@ -1,16 +1,13 @@
-import { u32, u64 } from "@polkadot/types";
+import { u64 } from "@polkadot/types";
 import { AccountId32 } from "@polkadot/types/interfaces/runtime";
 import { Balance } from "@polkadot/types/interfaces";
-import { EventHandler, DispatchedCallData } from "./types";
+import { EventHandler } from "./types";
 import { NftOffer, NftOrder, NftOrderDeal } from "../types";
 import { ensureAccount } from "./account";
 import { getTokenId } from "./nft";
 
 export const createNftOrder: EventHandler = async ({ rawEvent }) => {
-  const [orderId, , , , creator] = rawEvent.event.data as unknown as [
-    u64,
-    u32,
-    u32,
+  const [orderId, creator] = rawEvent.event.data as unknown as [
     u64,
     AccountId32
   ];
@@ -50,10 +47,7 @@ export const removeNftOrder: EventHandler = async ({ rawEvent }) => {
 };
 
 export const createNftOffer: EventHandler = async ({ rawEvent }) => {
-  const [offerId, , , , creator] = rawEvent.event.data as unknown as [
-    u64,
-    u32,
-    u32,
+  const [offerId, creator] = rawEvent.event.data as unknown as [
     u64,
     AccountId32
   ];

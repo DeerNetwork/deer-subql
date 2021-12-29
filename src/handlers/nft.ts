@@ -3,7 +3,7 @@ import { AccountId32 } from "@polkadot/types/interfaces/runtime";
 import { isUtf8 } from "@polkadot/util";
 
 import { PalletNftTransferReason } from "@polkadot/types/lookup";
-import { EventHandler, DispatchedCallData } from "./types";
+import { EventHandler } from "./types";
 import { NftMetadata } from "../types/interfaces";
 import {
   NftClass,
@@ -12,7 +12,6 @@ import {
   NftTokenOwner,
   NftTokenTransfer,
 } from "../types";
-import { ensureCallExist } from "./call";
 import { ensureAccount } from "./account";
 
 export const createNftClass: EventHandler = async ({ rawEvent }) => {
@@ -84,22 +83,20 @@ export const createNftBurnHistory: EventHandler = async ({
   await burn.save();
 };
 
-export async function updateNftTokenInfo({
-  call,
-  rawCall,
-}: DispatchedCallData) {
-  const args = rawCall.args;
-  await ensureCallExist(call.id);
-  const [classId, localTokenId] = args as unknown as [u32, u32];
+export const updateNftToken: EventHandler = async ({ rawEvent, event }) => {
+  const [classId, localTokenId] = rawEvent.event.data as unknown as [u32, u32];
   const nftToken = await getNftToken(classId, localTokenId);
   const maybeTokenDetails = await api.query.nft.tokens(classId, localTokenId);
   const tokenDetails = maybeTokenDetails.unwrap();
   Object.assign({
+    deposit: tokenDetails.deposit.toBigInt(),
+    quantity: tokenDetails.quantity.toBigInt(),
+    consumers: tokenDetails.consumers.toNumber(),
     royaltyRate: tokenDetails.royaltyRate.toNumber(),
     royaltyBeneficiary: tokenDetails.royaltyBeneficiary.toString(),
   });
   await nftToken.save();
-}
+};
 
 export async function getNftClass(classId: u32) {
   let nftClass = await NftClass.get(classId.toString());

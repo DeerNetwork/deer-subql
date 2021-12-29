@@ -88,8 +88,6 @@ type Account @entity {
 
   extrinsics: [Extrinsic] @derivedFrom(field: "signer")
   calls: [Call] @derivedFrom(field: "signer")
-  transferIn: [Transfer] @derivedFrom(field: "to")
-  transferOut: [Transfer] @derivedFrom(field: "from")
 }
 
 type Transfer @entity {
@@ -97,13 +95,10 @@ type Transfer @entity {
 
   from: Account
   to: Account
-  amount: String
-  amountInUSD: String
+  amount: BigInt
 
   extrinsic: Extrinsic
-  call: Call
   timestamp: Date
-  isSuccess: Boolean
 }
 
 type NftClass @entity {

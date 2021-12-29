@@ -10,6 +10,7 @@ import {
   createNftToken,
   createNftTransferHistory,
   createNftBurnHistory,
+  updateNftToken,
 } from "./nft";
 import {
   createNftOrder,
@@ -29,15 +30,19 @@ import {
   redeemNftDutchAuction,
   redeemNftEnglishAuction,
 } from "./nftAuction";
+import { createTransfer } from "./balances";
 
 const dispatch = new Dispatcher<DispatchedEventData>();
 
 dispatch.batchRegist([
+  // balances
+  { key: "balances-Transfer", handler: createTransfer },
   // nft
   { key: "nft-CreatedClass", handler: createNftClass },
   { key: "nft-MintedToken", handler: createNftToken },
   { key: "nft-TransferredToken", handler: createNftTransferHistory },
   { key: "nft-BurnedToken", handler: createNftBurnHistory },
+  { key: "nft-UpdatedToken", handler: updateNftToken },
   // nftOrder
   { key: "nftOrder-CreatedOrder", handler: createNftOrder },
   { key: "nftOrder-DealedOrder", handler: dealNftOrder },

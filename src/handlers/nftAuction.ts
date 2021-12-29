@@ -1,4 +1,4 @@
-import { u32, u64 } from "@polkadot/types";
+import { u64 } from "@polkadot/types";
 import { AccountId32 } from "@polkadot/types/interfaces/runtime";
 import { Balance } from "@polkadot/types/interfaces";
 import { EventHandler } from "./types";
@@ -7,10 +7,7 @@ import { ensureAccount } from "./account";
 import { getTokenId } from "./nft";
 
 export const createNftDutchAuction: EventHandler = async ({ rawEvent }) => {
-  const [auctionId, , , , creator] = rawEvent.event.data as unknown as [
-    u64,
-    u32,
-    u32,
+  const [auctionId, creator] = rawEvent.event.data as unknown as [
     u64,
     AccountId32
   ];
@@ -51,11 +48,9 @@ export const cancelNftDutchAuction: EventHandler = async ({ rawEvent }) => {
 };
 
 export const redeemNftDutchAuction: EventHandler = async ({ rawEvent }) => {
-  const [auctionId, bidder, owner, price] = rawEvent.event.data as unknown as [
+  const [auctionId, owner] = rawEvent.event.data as unknown as [
     u64,
-    AccountId32,
-    AccountId32,
-    Balance
+    AccountId32
   ];
   const nftAuction = await getNftAution(auctionId, owner, "dutch");
   nftAuction.isRedeemed = true;
@@ -63,10 +58,7 @@ export const redeemNftDutchAuction: EventHandler = async ({ rawEvent }) => {
 };
 
 export const createNftEnglishAuction: EventHandler = async ({ rawEvent }) => {
-  const [auctionId, , , , creator] = rawEvent.event.data as unknown as [
-    u64,
-    u32,
-    u32,
+  const [auctionId, creator] = rawEvent.event.data as unknown as [
     u64,
     AccountId32
   ];
@@ -113,11 +105,9 @@ export const cancelNftEnglishAuction: EventHandler = async ({
 };
 
 export const redeemNftEnglishAuction: EventHandler = async ({ rawEvent }) => {
-  const [auctionId, bidder, owner, price] = rawEvent.event.data as unknown as [
+  const [auctionId, owner] = rawEvent.event.data as unknown as [
     u64,
-    AccountId32,
-    AccountId32,
-    Balance
+    AccountId32
   ];
   const nftAuction = await getNftAution(auctionId, owner, "english");
   nftAuction.isRedeemed = true;

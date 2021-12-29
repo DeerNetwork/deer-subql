@@ -5,16 +5,9 @@ import { Call, Extrinsic } from "../types";
 import { AnyCall, DispatchedCallData } from "./types";
 
 import { Dispatcher, getBatchInterruptedIndex, getKVData } from "./utils";
-import { updateNftTokenInfo } from "./nft";
 const dispatcher = new Dispatcher<DispatchedCallData>();
 
-dispatcher.batchRegist([
-  { key: "nft-updateTokenRoyalty", handler: updateNftTokenInfo },
-  {
-    key: "nft-updateTokenRoyaltyBeneficiary",
-    handler: updateNftTokenInfo,
-  },
-]);
+dispatcher.batchRegist([]);
 
 async function traverExtrinsic(
   extrinsic: Extrinsic,
