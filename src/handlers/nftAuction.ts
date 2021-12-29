@@ -15,7 +15,7 @@ export const createNftDutchAuction: EventHandler = async ({ rawEvent }) => {
 };
 
 export const bidNftDutchAuction: EventHandler = async ({ rawEvent, event }) => {
-  const [auctionId, bidder, owner, price] = rawEvent.event.data as unknown as [
+  const [auctionId, owner, bidder, price] = rawEvent.event.data as unknown as [
     u64,
     AccountId32,
     AccountId32,
@@ -24,7 +24,7 @@ export const bidNftDutchAuction: EventHandler = async ({ rawEvent, event }) => {
   const nftAuction = await getNftAution(auctionId, owner, "dutch");
   const bidderAccount = await ensureAccount(bidder.toString());
   const bid = NftAuctionBid.create({
-    id: event.extrinsicId,
+    id: event.id,
     bidderId: bidderAccount.id,
     tokenId: nftAuction.tokenId,
     price: price.toBigInt(),
@@ -47,12 +47,32 @@ export const cancelNftDutchAuction: EventHandler = async ({ rawEvent }) => {
   await nftAuction.save();
 };
 
-export const redeemNftDutchAuction: EventHandler = async ({ rawEvent }) => {
-  const [auctionId, owner] = rawEvent.event.data as unknown as [
+export const redeemNftDutchAuction: EventHandler = async ({
+  rawEvent,
+  event,
+}) => {
+  const [auctionId, owner, bidder, price] = rawEvent.event.data as unknown as [
     u64,
-    AccountId32
+    AccountId32,
+    AccountId32,
+    Balance
   ];
   const nftAuction = await getNftAution(auctionId, owner, "dutch");
+  if (!nftAuction.currentBidId) {
+    const bidderAccount = await ensureAccount(bidder.toString());
+    const bid = NftAuctionBid.create({
+      id: event.id,
+      bidderId: bidderAccount.id,
+      tokenId: nftAuction.tokenId,
+      price: price.toBigInt(),
+      bidAt: event.blockNumber,
+      extrinsicId: event.extrinsicId,
+      timestamp: event.timestamp,
+    });
+    await bid.save();
+    nftAuction.currentBidId = bid.id;
+  }
+
   nftAuction.isRedeemed = true;
   await nftAuction.save();
 };
@@ -69,7 +89,7 @@ export const bidNftEnglishAuction: EventHandler = async ({
   rawEvent,
   event,
 }) => {
-  const [auctionId, bidder, owner, price] = rawEvent.event.data as unknown as [
+  const [auctionId, owner, bidder, price] = rawEvent.event.data as unknown as [
     u64,
     AccountId32,
     AccountId32,
@@ -78,7 +98,7 @@ export const bidNftEnglishAuction: EventHandler = async ({
   const nftAuction = await getNftAution(auctionId, owner, "english");
   const bidderAccount = await ensureAccount(bidder.toString());
   const bid = NftAuctionBid.create({
-    id: event.extrinsicId,
+    id: event.id,
     bidderId: bidderAccount.id,
     tokenId: nftAuction.tokenId,
     price: price.toBigInt(),

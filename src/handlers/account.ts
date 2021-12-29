@@ -1,19 +1,13 @@
 import { Account } from "../types/models";
 
-export async function ensureAccount(account: string) {
-  const record = await Account.get(account);
+export async function ensureAccount(accountId: string) {
+  let account = await Account.get(accountId);
 
-  if (record) return record;
+  if (account) return account;
 
-  const temp = new Account(account);
+  account = new Account(accountId);
 
-  await temp.save();
+  await account.save();
 
-  return temp;
-}
-
-export async function getAccount(account: string) {
-  const record = await Account.get(account);
-
-  return record;
+  return account;
 }
