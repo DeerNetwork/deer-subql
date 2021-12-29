@@ -4,9 +4,10 @@ run-node +args="":
     #!/bin/bash
     npx subql-node -f . -p 3001 --local {{args}}
 
-run-query:
+run-query name="public":
     #!/bin/bash
-    npx subql-query --playground --indexer=http://localhost:3001
+    export NAME={{name}}
+    npx subql-query --name {{name}} --playground --indexer=http://localhost:3001
 
 reset: reset-db build
 

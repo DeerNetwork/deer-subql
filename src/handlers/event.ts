@@ -11,6 +11,24 @@ import {
   createNftTransferHistory,
   createNftBurnHistory,
 } from "./nft";
+import {
+  createNftOrder,
+  createNftOffer,
+  dealNftOffer,
+  removeNftOffer,
+  removeNftOrder,
+  dealNftOrder,
+} from "./nftOrder";
+import {
+  createNftDutchAuction,
+  createNftEnglishAuction,
+  bidNftDutchAuction,
+  bidNftEnglishAuction,
+  cancelNftDutchAuction,
+  cancelNftEnglishAuction,
+  redeemNftDutchAuction,
+  redeemNftEnglishAuction,
+} from "./nftAuction";
 
 const dispatch = new Dispatcher<DispatchedEventData>();
 
@@ -20,6 +38,28 @@ dispatch.batchRegist([
   { key: "nft-MintedToken", handler: createNftToken },
   { key: "nft-TransferredToken", handler: createNftTransferHistory },
   { key: "nft-BurnedToken", handler: createNftBurnHistory },
+  // nftOrder
+  { key: "nftOrder-CreatedOrder", handler: createNftOrder },
+  { key: "nftOrder-DealedOrder", handler: dealNftOrder },
+  { key: "nftOrder-RemovedOrder", handler: removeNftOrder },
+  { key: "nftOrder-CreatedOffer", handler: createNftOffer },
+  { key: "nftOrder-DealedOffer", handler: dealNftOffer },
+  { key: "nftOrder-RemovedOffer", handler: removeNftOffer },
+  // nftAuction
+  { key: "nftAuction-CreatedDutchAuction", handler: createNftDutchAuction },
+  { key: "nftAuction-BidDutchAuction", handler: bidNftDutchAuction },
+  { key: "nftAuction-CanceledDutchAuction", handler: cancelNftDutchAuction },
+  { key: "nftAuction-RedeemedDutchAuction", handler: redeemNftDutchAuction },
+  { key: "nftAuction-CreatedEnglishAuction", handler: createNftEnglishAuction },
+  { key: "nftAuction-BidEnglishAuction", handler: bidNftEnglishAuction },
+  {
+    key: "nftAuction-CanceledEnglishAuction",
+    handler: cancelNftEnglishAuction,
+  },
+  {
+    key: "nftAuction-RedeemedEnglishAuction",
+    handler: redeemNftEnglishAuction,
+  },
 ]);
 
 export async function ensureEvnet(event: SubstrateEvent) {

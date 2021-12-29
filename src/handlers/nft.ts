@@ -1,10 +1,8 @@
-import { u32, u64, Bytes } from "@polkadot/types";
+import { u32, u64, Bytes, Compact } from "@polkadot/types";
 import { AccountId32 } from "@polkadot/types/interfaces/runtime";
 import { isUtf8 } from "@polkadot/util";
-import {
-  PalletNftClassDetails,
-  PalletNftTransferReason,
-} from "@polkadot/types/lookup";
+
+import { PalletNftTransferReason } from "@polkadot/types/lookup";
 import { EventHandler, DispatchedCallData } from "./types";
 import { NftMetadata } from "../types/interfaces";
 import {
@@ -125,14 +123,14 @@ export async function getNftClass(classId: u32) {
 }
 
 export async function getNftToken(classId: u32, localTokenId: u32) {
-  const tokenId = getTokenId(classId, localTokenId);
-  let nftToken = await NftToken.get(tokenId);
+  const id = getTokenId(classId, localTokenId);
+  let nftToken = await NftToken.get(id);
   if (!nftToken) {
     const maybeTokenDetails = await api.query.nft.tokens(classId, localTokenId);
     const tokenDetails = maybeTokenDetails.unwrap();
     const creatorAccount = await ensureAccount(tokenDetails.creator.toString());
     nftToken = NftToken.create({
-      id: tokenId,
+      id,
       classId: classId.toString(),
       localTokenId: localTokenId.toString(),
       creatorId: creatorAccount.id,
@@ -211,7 +209,10 @@ async function upsertTokenOwners(classId: u32, localTokenId: u32) {
   }
 }
 
-function getTokenId(classId: u32, localTokenId: u32) {
+export function getTokenId(
+  classId: u32 | Compact<u32>,
+  localTokenId: u32 | Compact<u32>
+) {
   return classId.toString() + "-" + localTokenId.toString();
 }
 
