@@ -31,6 +31,7 @@ import {
   redeemNftEnglishAuction,
 } from "./nftAuction";
 import { createTransfer } from "./balances";
+import { createStoreFile, registerNode, roundEnd } from "./fileStorage";
 
 const dispatch = new Dispatcher<DispatchedEventData>();
 
@@ -65,6 +66,10 @@ dispatch.batchRegist([
     key: "nftAuction-RedeemedEnglishAuction",
     handler: redeemNftEnglishAuction,
   },
+  // fileStorage
+  { key: "fileStorage-StoreFileSubmitted", handler: createStoreFile },
+  { key: "fileStorage-NodeRegisted", handler: registerNode },
+  { key: "fileStorage-RoundEnded", handler: roundEnd },
 ]);
 
 export async function ensureEvnet(event: SubstrateEvent) {

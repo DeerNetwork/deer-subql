@@ -111,10 +111,7 @@ export const bidNftEnglishAuction: EventHandler = async ({
   await nftAuction.save();
 };
 
-export const cancelNftEnglishAuction: EventHandler = async ({
-  rawEvent,
-  event,
-}) => {
+export const cancelNftEnglishAuction: EventHandler = async ({ rawEvent }) => {
   const [auctionId, owner] = rawEvent.event.data as unknown as [
     u64,
     AccountId32
@@ -134,7 +131,7 @@ export const redeemNftEnglishAuction: EventHandler = async ({ rawEvent }) => {
   await nftAuction.save();
 };
 
-export async function getNftAution(
+async function getNftAution(
   auctionId: u64,
   creator: AccountId32,
   kind: "dutch" | "english"

@@ -7,7 +7,9 @@ import { AnyCall, DispatchedCallData } from "./types";
 import { Dispatcher, getBatchInterruptedIndex, getKVData } from "./utils";
 const dispatcher = new Dispatcher<DispatchedCallData>();
 
-dispatcher.batchRegist([]);
+import { report } from "./fileStorage";
+
+dispatcher.batchRegist([{ key: "fileStorage-report", handler: report }]);
 
 async function traverExtrinsic(
   extrinsic: Extrinsic,

@@ -126,7 +126,6 @@ type NftToken @entity {
   metadataRaw: String
   deposit: BigInt
   quantity: BigInt
-  consumers: Int
   royaltyRate: Float
   royaltyBeneficiary: String
 
@@ -246,4 +245,105 @@ type NftOffer @entity {
 
   isRemoved: Boolean
   isDealed: Boolean
+}
+
+type StorageStoreFile @entity {
+  id: ID!
+
+  reserved: BigInt
+  baseFee: BigInt
+  addedAt: BigInt
+  fileSize: BigInt
+  firstAddedAt: BigInt
+  isRemoved: Boolean
+
+  currentOrder: StorageFileOrder
+  founds: [StorageStoreFileFund] @derivedFrom(field: "storeFile")
+  orders: [StorageFileOrder] @derivedFrom(field: "storeFile")
+  replicas: [StorageFileOrderReplica] @derivedFrom(field: "storeFile")
+}
+
+type StorageStoreFileFund @entity {
+  id: ID!
+
+  fee: BigInt 
+  storeFile: StorageStoreFile
+  funder: Account
+
+  extrinsic: Extrinsic
+  timestamp: Date
+}
+
+type StorageFileOrder @entity {
+  id: ID!
+
+  fee: BigInt
+  fileSize: BigInt
+  expireAt: BigInt
+  addedAt: BigInt
+  deletedAt: BigInt
+
+  storeFile: StorageStoreFile
+  replicas: [StorageFileOrderReplica] @derivedFrom(field: "order")
+}
+
+type StorageNode @entity {
+  id: ID!
+
+  owner: Account
+  stasher: Account
+  enclave: String
+  deposit: BigInt
+  rid: Int
+  used: BigInt
+  power: BigInt
+  reportedAt: BigInt
+
+  reports: [StorageNodeReport] @derivedFrom(field: "node")
+  replicas: [StorageFileOrderReplica] @derivedFrom(field: "node")
+}
+
+
+type StorageFileOrderReplica @entity {
+  id: ID!
+
+  addedAt: BigInt
+  deletedAt: BigInt
+
+  node: StorageNode
+  order: StorageFileOrder
+  storeFile: StorageStoreFile
+}
+
+type StorageReportRound @entity {
+  id: ID!
+
+  used: BigInt
+  power: BigInt
+  mineReward: BigInt
+  storeReward: BigInt
+  paidMineReard: BigInt
+  paidStoreReward: BigInt
+  unpaid: BigInt
+  endedAt: BigInt
+
+  reports: [StorageNodeReport] @derivedFrom(field: "round")
+}
+
+type StorageNodeReport @entity {
+  id: ID!
+
+  node: StorageNode
+  round: StorageReportRound
+
+  rid: Int
+  used: BigInt
+  power: BigInt
+  mineReward: BigInt
+  shareStoreReward: BigInt
+  directStoreReward: BigInt
+  slash: BigInt
+
+  extrinsic: Extrinsic
+  timestamp: Date
 }

@@ -98,7 +98,7 @@ export const updateNftToken: EventHandler = async ({ rawEvent, event }) => {
   await nftToken.save();
 };
 
-export async function getNftClass(classId: u32) {
+async function getNftClass(classId: u32) {
   let nftClass = await NftClass.get(classId.toString());
   if (!nftClass) {
     const maybeClassDetails = await api.query.nft.classes(classId);
@@ -119,7 +119,7 @@ export async function getNftClass(classId: u32) {
   return nftClass;
 }
 
-export async function getNftToken(classId: u32, localTokenId: u32) {
+async function getNftToken(classId: u32, localTokenId: u32) {
   const id = getTokenId(classId, localTokenId);
   let nftToken = await NftToken.get(id);
   if (!nftToken) {
@@ -133,7 +133,6 @@ export async function getNftToken(classId: u32, localTokenId: u32) {
       creatorId: creatorAccount.id,
       deposit: tokenDetails.deposit.toBigInt(),
       quantity: tokenDetails.quantity.toBigInt(),
-      consumers: tokenDetails.consumers.toNumber(),
       royaltyRate: tokenDetails.royaltyRate.toNumber(),
       royaltyBeneficiary: tokenDetails.royaltyBeneficiary.toString(),
       ...parseNftMetadata(tokenDetails.metadata),

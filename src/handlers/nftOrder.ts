@@ -101,7 +101,7 @@ export async function getNftOrder(orderId: u64, creator: AccountId32) {
   return nftOrder;
 }
 
-export async function getNftOffer(offerId: u64, creator: AccountId32) {
+async function getNftOffer(offerId: u64, creator: AccountId32) {
   const id = offerId.toString();
   let nftOffer = await NftOffer.get(id);
   if (!nftOffer) {
