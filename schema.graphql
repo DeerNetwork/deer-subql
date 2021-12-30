@@ -8,15 +8,6 @@ type NftMetadata @jsonField {
   name: String
 }
 
-type DutchAuctionDetail @jsonField {
-  mixPrice: String
-  maxPrice: String
-}
-
-type EnglishAuctionDetail @jsonField {
-  initPrice: String
-  minRaisePrice: String
-}
 
 type Block @entity {
   id: ID!
@@ -181,15 +172,29 @@ type NftAuction @entity {
   token: NftToken
   currentBid: NftAuctionBid
 
-  isRemoved: Boolean
-  isRedeemed: Boolean
+  status: NftAuctionStatus
+
+  kind: NftAuctionKind
 
   quantity: BigInt
-  dutch: DutchAuctionDetail
-  english: EnglishAuctionDetail
+  mixPrice: BigInt
+  maxPrice: BigInt
+  initPrice: BigInt
+  minRaisePrice: BigInt
   deposit: BigInt
   openAt: BigInt
   deadline: BigInt
+}
+
+enum NftAuctionKind {
+  DUTCH
+  ENGLISH
+}
+
+enum NftAuctionStatus {
+  NORMAL
+  CANCEL
+  REDEEM
 }
 
 type NftAuctionBid @entity {
@@ -216,7 +221,16 @@ type NftOrder @entity {
   deadline: BigInt
   totalQuantity: BigInt
   quantity: BigInt
-  isRemoved: Boolean
+
+  status: NftOrderStatus
+}
+
+enum NftOrderStatus {
+  NORMAL
+  CANCEL
+  PARTIAL_DEAL
+  PARTIAL_CANCEL
+  FULL_DEAIL
 }
 
 type NftOrderDeal @entity {
@@ -243,8 +257,13 @@ type NftOffer @entity {
   price: BigInt
   deadline: BigInt
 
-  isRemoved: Boolean
-  isDealed: Boolean
+  status: NftOfferStatus
+}
+
+enum NftOfferStatus {
+  NORMAL
+  CANCEL
+  DEAL
 }
 
 type StorageStoreFile @entity {
@@ -255,12 +274,18 @@ type StorageStoreFile @entity {
   addedAt: BigInt
   fileSize: BigInt
   firstAddedAt: BigInt
-  isRemoved: Boolean
+  status: StorageFileStatus
 
-  currentOrder: StorageFileOrder
+  currentOrderId: String
   founds: [StorageStoreFileFund] @derivedFrom(field: "storeFile")
   orders: [StorageFileOrder] @derivedFrom(field: "storeFile")
   replicas: [StorageFileOrderReplica] @derivedFrom(field: "storeFile")
+}
+
+enum StorageFileStatus {
+  WAITING
+  STORING
+  INVALID
 }
 
 type StorageStoreFileFund @entity {

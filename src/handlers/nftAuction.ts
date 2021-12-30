@@ -2,7 +2,12 @@ import { u64 } from "@polkadot/types";
 import { AccountId32 } from "@polkadot/types/interfaces/runtime";
 import { Balance } from "@polkadot/types/interfaces";
 import { EventHandler } from "./types";
-import { NftAuction, NftAuctionBid } from "../types";
+import {
+  NftAuction,
+  NftAuctionBid,
+  NftAuctionKind,
+  NftAuctionStatus,
+} from "../types";
 import { ensureAccount } from "./account";
 import { getTokenId } from "./nft";
 
@@ -43,7 +48,7 @@ export const cancelNftDutchAuction: EventHandler = async ({ rawEvent }) => {
     AccountId32
   ];
   const nftAuction = await getNftAution(auctionId, owner, "dutch");
-  nftAuction.isRemoved = true;
+  nftAuction.status = NftAuctionStatus.CANCEL;
   await nftAuction.save();
 };
 
@@ -73,7 +78,7 @@ export const redeemNftDutchAuction: EventHandler = async ({
     nftAuction.currentBidId = bid.id;
   }
 
-  nftAuction.isRedeemed = true;
+  nftAuction.status = NftAuctionStatus.REDEEM;
   await nftAuction.save();
 };
 
@@ -117,7 +122,7 @@ export const cancelNftEnglishAuction: EventHandler = async ({ rawEvent }) => {
     AccountId32
   ];
   const nftAuction = await getNftAution(auctionId, owner, "english");
-  nftAuction.isRemoved = true;
+  nftAuction.status = NftAuctionStatus.CANCEL;
   await nftAuction.save();
 };
 
@@ -127,7 +132,7 @@ export const redeemNftEnglishAuction: EventHandler = async ({ rawEvent }) => {
     AccountId32
   ];
   const nftAuction = await getNftAution(auctionId, owner, "english");
-  nftAuction.isRedeemed = true;
+  nftAuction.status = NftAuctionStatus.REDEEM;
   await nftAuction.save();
 };
 
@@ -151,13 +156,13 @@ async function getNftAution(
         creatorId: creatorAccount.id,
         tokenId: getTokenId(dutchDetails.classId, dutchDetails.tokenId),
         quantity: dutchDetails.quantity.toBigInt(),
+        kind: NftAuctionKind.DUTCH,
         deposit: dutchDetails.deposit.toBigInt(),
-        dutch: {
-          maxPrice: dutchDetails.maxPrice.toString(),
-          mixPrice: dutchDetails.minPrice.toString(),
-        },
+        maxPrice: dutchDetails.maxPrice.toBigInt(),
+        mixPrice: dutchDetails.minPrice.toBigInt(),
         openAt: dutchDetails.openAt.toBigInt(),
         deadline: dutchDetails.deadline.toBigInt(),
+        status: NftAuctionStatus.NORMAL,
       });
     } else {
       const maybeEnglishAuction = await api.query.nftAuction.englishAuctions(
@@ -171,13 +176,13 @@ async function getNftAution(
         creatorId: creatorAccount.id,
         tokenId: getTokenId(englishDetails.classId, englishDetails.tokenId),
         quantity: englishDetails.quantity.toBigInt(),
+        kind: NftAuctionKind.ENGLISH,
         deposit: englishDetails.deposit.toBigInt(),
-        english: {
-          minRaisePrice: englishDetails.minRaisePrice.toString(),
-          initPrice: englishDetails.initPrice.toString(),
-        },
+        minRaisePrice: englishDetails.minRaisePrice.toBigInt(),
+        initPrice: englishDetails.initPrice.toBigInt(),
         openAt: englishDetails.openAt.toBigInt(),
         deadline: englishDetails.deadline.toBigInt(),
+        status: NftAuctionStatus.NORMAL,
       });
     }
     await nftAuction.save();

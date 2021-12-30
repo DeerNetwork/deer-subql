@@ -11,6 +11,7 @@ import {
   StorageFileOrderReplica,
   StorageFileOrder,
   StorageNodeReport,
+  StorageFileStatus,
 } from "../types";
 import { ensureAccount } from "./account";
 import {
@@ -27,8 +28,8 @@ export const createStoreFile: EventHandler = async ({ rawEvent, event }) => {
     Balance
   ];
   const file = await syncStoreFile(cid);
-  if (file.isRemoved) {
-    file.isRemoved = false;
+  if (file.status === StorageFileStatus.INVALID) {
+    file.status = StorageFileStatus.WAITING;
     await file.save();
   }
   const funderAccount = await ensureAccount(funder.toString());
@@ -138,7 +139,7 @@ export async function report({
       if (file.currentOrderId) {
         await setFileOrderDeteleted(file, blockNumber);
       }
-      file.isRemoved = true;
+      file.status = StorageFileStatus.INVALID;
       await file.save();
     }),
     ...newOrders.map(async (cid) => {
@@ -225,7 +226,11 @@ async function syncStoreFile(cid: Bytes) {
   if (!file.firstAddedAt) {
     file.firstAddedAt = file.addedAt;
   }
-  file.isRemoved = false;
+  if (file.baseFee === BigInt(0)) {
+    file.status = StorageFileStatus.STORING;
+  } else {
+    file.status = StorageFileStatus.WAITING;
+  }
   await file.save();
   return file;
 }
@@ -236,22 +241,30 @@ async function syncNode(owner: AccountId32, machineId: Bytes) {
   if (!node) {
     node = new StorageNode(id);
   }
-  const [maybeRegister, maybeStashInfo, maybeNodeInfo] = await api.queryMulti([
+  const [maybeRegister, maybeStashInfo, maybeNodeInfo] = (await api.queryMulti([
     [api.query.fileStorage.registers, machineId],
     [api.query.fileStorage.stashs, owner],
     [api.query.fileStorage.nodes, owner],
-  ]);
+  ])) as [
+    Option<PalletStorageRegisterInfo>,
+    Option<PalletStorageStashInfo>,
+    Option<PalletStorageNodeInfo>
+  ];
   const registerInfo = maybeRegister.unwrap() as PalletStorageRegisterInfo;
   const stashInfo = maybeStashInfo.unwrap() as PalletStorageStashInfo;
-  const nodeInfo = maybeNodeInfo.unwrap() as PalletStorageNodeInfo;
   node.enclave = registerInfo.enclave.toString();
+  const ownerAccount = await ensureAccount(owner.toString());
   const stasherAccount = await ensureAccount(stashInfo.stasher.toString());
+  node.ownerId = ownerAccount.id;
   node.stasherId = stasherAccount.id;
   node.deposit = stashInfo.deposit.toBigInt();
-  node.rid = nodeInfo.rid.toNumber();
-  node.used = nodeInfo.used.toBigInt();
-  node.power = nodeInfo.power.toBigInt();
-  node.reportedAt = nodeInfo.reportedAt.toBigInt();
+  if (maybeNodeInfo.isSome) {
+    const nodeInfo = maybeNodeInfo.unwrap() as PalletStorageNodeInfo;
+    node.rid = nodeInfo.rid.toNumber();
+    node.used = nodeInfo.used.toBigInt();
+    node.power = nodeInfo.power.toBigInt();
+    node.reportedAt = nodeInfo.reportedAt.toBigInt();
+  }
   await node.save();
   return node;
 }
@@ -286,13 +299,23 @@ async function syncReportRound(roundIndex: AnyNumber) {
   return reportRound;
 }
 
-async function batchQueryFileOrders(cids: Bytes[]) {
+async function batchQueryFileOrders(cids: Bytes[]): Promise<BatchFileOrders> {
+  if (cids.length === 0) return {};
   const allCids = Array.from(new Set(cids.map((v) => v.toString())));
-  const maybeFileOrders = await api.query.fileStorage.fileOrders.multi(allCids);
+  const maybeFileOrders: Option<PalletStorageFileOrder>[] =
+    await api.queryMulti(
+      allCids.map((cid) => {
+        return [api.query.fileStorage.fileOrders, cid];
+      })
+    );
   return allCids.reduce((acc, cur, index) => {
     acc[cur] = maybeFileOrders[index];
     return acc;
-  }, {} as { [k: string]: Option<PalletStorageFileOrder> });
+  }, {} as BatchFileOrders);
+}
+
+interface BatchFileOrders {
+  [k: string]: Option<PalletStorageFileOrder>;
 }
 
 async function setFileOrderDeteleted(

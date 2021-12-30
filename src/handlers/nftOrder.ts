@@ -2,7 +2,13 @@ import { u64 } from "@polkadot/types";
 import { AccountId32 } from "@polkadot/types/interfaces/runtime";
 import { Balance } from "@polkadot/types/interfaces";
 import { EventHandler } from "./types";
-import { NftOffer, NftOrder, NftOrderDeal } from "../types";
+import {
+  NftOffer,
+  NftOrder,
+  NftOrderDeal,
+  NftOrderStatus,
+  NftOfferStatus,
+} from "../types";
 import { ensureAccount } from "./account";
 import { getTokenId } from "./nft";
 
@@ -22,6 +28,11 @@ export const dealNftOrder: EventHandler = async ({ rawEvent, event }) => {
   const orderDetails = maybeOrderDetails.unwrapOrDefault();
   const buyerAccount = await ensureAccount(buyer.toString());
   nftOrder.quantity = orderDetails.quantity.toBigInt();
+  if (nftOrder.quantity === BigInt(0)) {
+    nftOrder.status = NftOrderStatus.FULL_DEAIL;
+  } else {
+    nftOrder.status = NftOrderStatus.PARTIAL_DEAL;
+  }
   await nftOrder.save();
   const orderDeal = NftOrderDeal.create({
     id: event.extrinsicId,
@@ -42,7 +53,11 @@ export const removeNftOrder: EventHandler = async ({ rawEvent }) => {
     AccountId32
   ];
   const nftOrder = await getNftOrder(orderId, creator);
-  nftOrder.isRemoved = true;
+  if (nftOrder.quantity === nftOrder.totalQuantity) {
+    nftOrder.status = NftOrderStatus.CANCEL;
+  } else {
+    nftOrder.status = NftOrderStatus.PARTIAL_CANCEL;
+  }
   await nftOrder.save();
 };
 
@@ -63,7 +78,7 @@ export const dealNftOffer: EventHandler = async ({ rawEvent }) => {
     Balance
   ];
   const nftOffer = await getNftOffer(offerId, buyer);
-  nftOffer.isDealed = true;
+  nftOffer.status = NftOfferStatus.DEAL;
   await nftOffer.save();
 };
 
@@ -73,7 +88,7 @@ export const removeNftOffer: EventHandler = async ({ rawEvent }) => {
     AccountId32
   ];
   const nftOffer = await getNftOffer(offerId, creator);
-  nftOffer.isRemoved = true;
+  nftOffer.status = NftOfferStatus.CANCEL;
   await nftOffer.save();
 };
 
@@ -92,6 +107,7 @@ export async function getNftOrder(orderId: u64, creator: AccountId32) {
       quantity: orderDetails.quantity.toBigInt(),
       price: orderDetails.price.toBigInt(),
       deposit: orderDetails.deposit.toBigInt(),
+      status: NftOrderStatus.NORMAL,
     });
     if (orderDetails.deadline.isSome) {
       nftOrder.deadline = orderDetails.deadline.unwrap().toBigInt();
@@ -114,6 +130,7 @@ async function getNftOffer(offerId: u64, creator: AccountId32) {
       tokenId: getTokenId(offerDetails.classId, offerDetails.tokenId),
       quantity: offerDetails.quantity.toBigInt(),
       price: offerDetails.price.toBigInt(),
+      status: NftOfferStatus.NORMAL,
     });
     if (offerDetails.deadline.isSome) {
       nftOffer.deadline = offerDetails.deadline.unwrap().toBigInt();
