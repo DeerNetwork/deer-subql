@@ -18,11 +18,8 @@
   ],
   "license": "MIT",
   "devDependencies": {
-    "@deernetwork/type-definitions": "^0.4.10",
     "@polkadot/api": "^6",
-    "@subql/cli": "latest",
-    "@subql/node": "latest",
-    "@subql/query": "latest",
+    "@subql/node": "^0.26.0",
     "@subql/types": "^0.12.0",
     "@typescript-eslint/eslint-plugin": "^5.4.0",
     "@typescript-eslint/parser": "^5.4.0",
@@ -34,6 +31,7 @@
     "typescript": "^4.1.3"
   },
   "dependencies": {
+    "@deernetwork/type-definitions": "^0.4.10",
     "multiformats": "^9.5.4"
   }
 }

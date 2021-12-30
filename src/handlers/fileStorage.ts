@@ -1,5 +1,5 @@
 import { u32, u64, Bytes, Option } from "@polkadot/types";
-import { isUtf8 } from "@polkadot/util";
+import { BN, isUtf8 } from "@polkadot/util";
 import { CID } from "multiformats/cid";
 import { AnyNumber } from "@polkadot/types/types";
 import { AccountId32 } from "@polkadot/types/interfaces/runtime";
@@ -20,7 +20,9 @@ import {
   PalletStorageFileOrder,
   PalletStorageNodeInfo,
   PalletStorageRegisterInfo,
+  PalletStorageRewardInfo,
   PalletStorageStashInfo,
+  PalletStorageSummaryStats,
 } from "@polkadot/types/lookup";
 
 export const createStoreFile: EventHandler = async ({ rawEvent, event }) => {
@@ -56,10 +58,28 @@ export const registerNode: EventHandler = async ({ rawEvent }) => {
 
 export const roundEnd: EventHandler = async ({ rawEvent, event }) => {
   const [roundIndex, unpaid] = rawEvent.event.data as unknown as [u32, Balance];
-  const currentRound = await syncReportRound(roundIndex);
-  currentRound.unpaid = unpaid.toBigInt();
+  const prevIndex = roundIndex.sub(new BN(1));
+  const [roundReward, prevRoundReward, roundSummary] = (await api.queryMulti([
+    [api.query.fileStorage.roundsReward, roundIndex],
+    [api.query.fileStorage.roundsReward, prevIndex],
+    [api.query.fileStorage.roundsSummary, roundIndex],
+  ])) as [
+    PalletStorageRewardInfo,
+    PalletStorageRewardInfo,
+    PalletStorageSummaryStats
+  ];
+  const currentRound = await getReportRound(roundIndex);
+  currentRound.power = roundSummary.power.toBigInt();
+  currentRound.used = roundSummary.used.toBigInt();
+  currentRound.mineReward = roundReward.mineReward.toBigInt();
+  currentRound.storeReward = roundReward.storeReward.toBigInt();
   currentRound.endedAt = event.blockNumber;
   await currentRound.save();
+  const prevRound = await getReportRound(prevIndex);
+  prevRound.paidMineReard = prevRoundReward.paidMineReward.toBigInt();
+  prevRound.paidStoreReward = prevRoundReward.paidStoreReward.toBigInt();
+  prevRound.unpaid = unpaid.toBigInt();
+  await prevRound.save();
 };
 
 export async function report({
@@ -106,7 +126,7 @@ export async function report({
     Balance
   ];
   const node = await syncNode(reporter, machineId);
-  const round = await syncReportRound(roundIndex);
+  const round = await getReportRound(roundIndex);
   const blockNumber = rawExtrinsic.block.block.header.number.toBigInt();
 
   const nodeReport = StorageNodeReport.create({
@@ -296,18 +316,12 @@ async function ensureNode(owner: AccountId32, machineId?: Bytes) {
   return node;
 }
 
-async function syncReportRound(roundIndex: AnyNumber) {
+async function getReportRound(roundIndex: AnyNumber) {
   let reportRound = await StorageReportRound.get(roundIndex.toString());
-  if (!reportRound) {
-    const roundReward = await api.query.fileStorage.roundsReward(roundIndex);
+  if (reportRound) {
     reportRound = new StorageReportRound(roundIndex.toString());
-    reportRound.mineReward = roundReward.mineReward.toBigInt();
-    reportRound.storeReward = roundReward.storeReward.toBigInt();
-    reportRound.paidMineReard = roundReward.paidMineReward.toBigInt();
-    reportRound.paidMineReard = roundReward.paidMineReward.toBigInt();
+    await reportRound.save();
   }
-
-  await reportRound.save();
   return reportRound;
 }
 
