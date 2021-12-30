@@ -1,4 +1,6 @@
 import { u32, u64, Bytes, Option } from "@polkadot/types";
+import { isUtf8 } from "@polkadot/util";
+import { CID } from "multiformats/cid";
 import { AnyNumber } from "@polkadot/types/types";
 import { AccountId32 } from "@polkadot/types/interfaces/runtime";
 import { Balance } from "@polkadot/types/interfaces";
@@ -217,6 +219,7 @@ async function syncStoreFile(cid: Bytes) {
   if (!file) {
     file = new StorageStoreFile(id);
   }
+  maybeSetCid(file, cid);
   const maybeStoreFile = await api.query.fileStorage.storeFiles(cid);
   const storeFile = maybeStoreFile.unwrap();
   file.reserved = storeFile.reserved.toBigInt();
@@ -233,6 +236,15 @@ async function syncStoreFile(cid: Bytes) {
   }
   await file.save();
   return file;
+}
+
+function maybeSetCid(file: StorageStoreFile, cid: Bytes) {
+  if (!isUtf8(cid)) return;
+  try {
+    const maybeCid = cid.toUtf8();
+    CID.parse(maybeCid);
+    file.cid = maybeCid;
+  } catch {}
 }
 
 async function syncNode(owner: AccountId32, machineId: Bytes) {

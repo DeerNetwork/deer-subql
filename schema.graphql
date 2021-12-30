@@ -269,6 +269,7 @@ enum NftOfferStatus {
 type StorageStoreFile @entity {
   id: ID!
 
+  cid: String
   reserved: BigInt
   baseFee: BigInt
   addedAt: BigInt
