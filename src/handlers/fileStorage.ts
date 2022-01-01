@@ -10,7 +10,7 @@ import {
   StorageReportRound,
   StorageStoreFile,
   StorageStoreFileFund,
-  StorageFileOrderReplica,
+  StorageFileReplica,
   StorageFileOrder,
   StorageNodeReport,
   StorageFileStatus,
@@ -88,45 +88,31 @@ export async function report({
   rawExtrinsic,
 }: DispatchedCallData) {
   if (!call.isSuccess) return;
-  const [rid, , , addFiles, delFiles] = rawCall.args as unknown as [
-    u64,
-    u64,
-    Bytes,
-    [[Bytes, u64]],
-    [Bytes],
-    [Bytes]
-  ];
+  const [rid, , , addFiles, delFiles, settleFiles] =
+    rawCall.args as unknown as [
+      u64,
+      u64,
+      Bytes,
+      [[Bytes, u64]],
+      [Bytes],
+      [Bytes]
+    ];
   const { event } = rawExtrinsic.events.find(
     ({ event }) =>
       event.section === "fileStorage" && event.method === "NodeReported"
   );
-  const storeFileRemovedEvents = rawExtrinsic.events.filter(
+  const storeFileDeletedEvents = rawExtrinsic.events.filter(
     ({ event }) =>
-      event.section === "fileStorage" && event.method === "StoreFileRemoved"
+      event.section === "fileStorage" && event.method === "FileDeleted"
   );
   const storeFileNewOrderEvents = rawExtrinsic.events.filter(
     ({ event }) =>
-      event.section === "fileStorage" && event.method === "StoreFileNewOrder"
+      event.section === "fileStorage" && event.method === "FileStored"
   );
-  const [
-    reporter,
-    machineId,
-    roundIndex,
-    slash,
-    mineReward,
-    shareStoreReward,
-    directStoreReward,
-  ] = event.data as unknown as [
-    AccountId32,
-    Bytes,
-    u32,
-    Balance,
-    Balance,
-    Balance,
-    Balance
-  ];
+  const [reporter, machineId] = event.data as unknown as [AccountId32, Bytes];
+  const currentRound = await api.query.fileStorage.currentRound();
   const node = await syncNode(reporter, machineId);
-  const round = await getReportRound(roundIndex);
+  const round = await getReportRound(currentRound);
   const blockNumber = rawExtrinsic.block.block.header.number.toBigInt();
 
   const nodeReport = StorageNodeReport.create({
@@ -136,25 +122,25 @@ export async function report({
     rid: rid.toNumber(),
     used: node.used,
     power: node.power,
-    slash: slash.toBigInt(),
-    mineReward: mineReward.toBigInt(),
-    shareStoreReward: shareStoreReward.toBigInt(),
-    directStoreReward: directStoreReward.toBigInt(),
+    // TODO
     extrinsicId: call.extrinsicId,
     timestamp: call.timestamp,
   });
   await nodeReport.save();
-  const removeOrders: Bytes[] = storeFileRemovedEvents.map(
+  const removeOrders: Bytes[] = storeFileDeletedEvents.map(
     ({ event }) => event.data[0] as unknown as Bytes
   );
   const newOrders: Bytes[] = storeFileNewOrderEvents.map(
     ({ event }) => event.data[0] as unknown as Bytes
   );
+  const maybeChangeFiles = [...addFiles.map(([cid]) => cid), ...settleFiles];
   const maybeFileOrders = await batchQueryFileOrders([
-    ...addFiles.map(([cid]) => cid),
+    ...maybeChangeFiles,
     ...delFiles,
     ...newOrders,
   ]);
+  const getReplicaId = (node: AccountId32, cid: Bytes) =>
+    node.toString() + "-" + cid + "-" + blockNumber;
   await Promise.all([
     ...removeOrders.map(async (cid) => {
       const file = await StorageStoreFile.get(cid.toString());
@@ -166,15 +152,17 @@ export async function report({
     }),
     ...newOrders.map(async (cid) => {
       const file = await syncStoreFile(cid);
-      if (file.currentOrderId) {
-        await setFileOrderDeteleted(file, blockNumber);
-      }
       const fileOrder = maybeFileOrders[cid.toString()].unwrap();
+      const currentReplicaIds = fileOrder.replicas.map((node) =>
+        getReplicaId(node, cid)
+      );
       const order = StorageFileOrder.create({
         id: cid.toString() + "-" + call.id,
         fee: fileOrder.fee.toBigInt(),
         fileSize: fileOrder.fileSize.toBigInt(),
         expireAt: fileOrder.expireAt.toBigInt(),
+        renew: 0,
+        currentReplicaIds,
         addedAt: blockNumber,
         storeFileId: file.id,
       });
@@ -182,13 +170,14 @@ export async function report({
       await order.save();
       await file.save();
       await Promise.all(
-        fileOrder.replicas.map(async (reporter) => {
-          const repoterNode = await ensureNode(reporter);
-          const replica = StorageFileOrderReplica.create({
-            id: report.toString() + "-" + call.id,
+        fileOrder.replicas.map(async (node) => {
+          const repoterNode = await ensureNode(node);
+          const replica = StorageFileReplica.create({
+            id: getReplicaId(node, cid),
             addedAt: blockNumber,
             orderId: order.id,
             nodeId: repoterNode.id,
+            storeFileId: file.id,
           });
           await replica.save();
         })
@@ -196,39 +185,69 @@ export async function report({
     }),
   ]);
   await Promise.all([
-    ...addFiles.map(async ([cid]) => {
+    ...maybeChangeFiles.map(async (cid) => {
       const maybeFileOrder = maybeFileOrders[cid.toString()];
       if (maybeFileOrder.isNone) return;
       const fileOrder = maybeFileOrder.unwrap();
-      if (!fileOrder.replicas.find((replica) => replica.eq(reporter))) return;
       const file = await StorageStoreFile.get(cid.toString());
       if (!file || !file.currentOrderId) return;
-      const replicas = await StorageFileOrderReplica.getByOrderId(
-        file.currentOrderId
-      );
-      let replica = replicas.find((replica) => replica.nodeId == node.id);
-      if (replica) return;
-      replica = StorageFileOrderReplica.create({
-        id: report.toString() + "-" + call.id,
-        addedAt: blockNumber,
-        orderId: file.currentOrderId,
-        nodeId: node.id,
-      });
-      await replica.save();
+      const order = await StorageFileOrder.get(file.currentOrderId);
+      if (order.expireAt !== fileOrder.expireAt.toBigInt()) {
+        order.renew += 1;
+      }
+      const newCurrentReplicaIds = [];
+      const toRemoveReplicas = order.currentReplicaIds.slice();
+      const toAddReplicas = [];
+      for (const node of fileOrder.replicas.map((v) => v.toString())) {
+        const index = toRemoveReplicas.findIndex((v) => v.startsWith(node));
+        if (index > -1) {
+          newCurrentReplicaIds.push(toRemoveReplicas[index]);
+          toRemoveReplicas.splice(index, 1);
+        } else {
+          toAddReplicas.push(node);
+        }
+      }
+      await Promise.all([
+        ...toAddReplicas.map(async (node) => {
+          const repoterNode = await ensureNode(node);
+          const id = getReplicaId(node, cid);
+          const replica = StorageFileReplica.create({
+            id,
+            addedAt: blockNumber,
+            orderId: order.id,
+            nodeId: repoterNode.id,
+            storeFileId: file.id,
+          });
+          await replica.save();
+          newCurrentReplicaIds.push(id);
+        }),
+        ...toRemoveReplicas.map(async (id) => {
+          const replica = await StorageFileReplica.get(id);
+          if (replica) {
+            replica.deletedAt = blockNumber;
+            await replica.save();
+          }
+        }),
+      ]);
+      order.currentReplicaIds = newCurrentReplicaIds;
+      await order.save();
     }),
     ...delFiles.map(async (cid) => {
       const maybeFileOrder = maybeFileOrders[cid.toString()];
       if (maybeFileOrder.isNone) return;
-      const fileOrder = maybeFileOrder.unwrap();
-      if (fileOrder.replicas.find((replica) => replica.eq(reporter))) return;
       const file = await StorageStoreFile.get(cid.toString());
-      const replicas = await StorageFileOrderReplica.getByOrderId(
-        file.currentOrderId
+      if (!file || !file.currentOrderId) return;
+      const order = await StorageFileOrder.get(file.currentOrderId);
+      const replicaId = order.currentReplicaIds.find(
+        (v) => v.split("-")[1] === cid.toString()
       );
-      const replica = replicas.find((replica) => replica.nodeId == node.id);
-      if (!replica) return;
-      replica.deletedAt = blockNumber;
-      await replica.save();
+      if (replicaId) {
+        const replica = await StorageFileReplica.get(replicaId);
+        if (replica) {
+          replica.deletedAt = blockNumber;
+          await replica.save();
+        }
+      }
     }),
   ]);
 }
@@ -301,7 +320,7 @@ async function syncNode(owner: AccountId32, machineId: Bytes) {
   return node;
 }
 
-async function ensureNode(owner: AccountId32, machineId?: Bytes) {
+async function ensureNode(owner: AccountId32 | string, machineId?: Bytes) {
   if (!machineId) {
     const maybeStashInfo = await api.query.fileStorage.stashs(owner);
     const stashInfo = maybeStashInfo.unwrap();
@@ -318,8 +337,19 @@ async function ensureNode(owner: AccountId32, machineId?: Bytes) {
 
 async function getReportRound(roundIndex: AnyNumber) {
   let reportRound = await StorageReportRound.get(roundIndex.toString());
-  if (reportRound) {
+  if (!reportRound) {
     reportRound = new StorageReportRound(roundIndex.toString());
+    const [roundReward, roundSummary] = (await api.queryMulti([
+      [api.query.fileStorage.roundsReward, roundIndex],
+      [api.query.fileStorage.roundsSummary, roundIndex],
+    ])) as [PalletStorageRewardInfo, PalletStorageSummaryStats];
+    reportRound.used = roundSummary.used.toBigInt();
+    reportRound.power = roundSummary.power.toBigInt();
+    reportRound.storeReward = roundReward.storeReward.toBigInt();
+    reportRound.mineReward = roundReward.mineReward.toBigInt();
+    reportRound.paidMineReard = roundReward.paidMineReward.toBigInt();
+    reportRound.paidStoreReward = roundReward.paidStoreReward.toBigInt();
+    reportRound.unpaid = BigInt(0);
     await reportRound.save();
   }
   return reportRound;
@@ -351,7 +381,7 @@ async function setFileOrderDeteleted(
   const order = await StorageFileOrder.get(file.currentOrderId);
   order.deletedAt = blockNumber;
   await order.save();
-  const replicas = await StorageFileOrderReplica.getByOrderId(order.id);
+  const replicas = await StorageFileReplica.getByOrderId(order.id);
   await Promise.all(
     replicas.map(async (replica) => {
       if (!replica.deletedAt) {

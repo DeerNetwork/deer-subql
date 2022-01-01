@@ -67,8 +67,8 @@ dispatch.batchRegist([
     handler: redeemNftEnglishAuction,
   },
   // fileStorage
-  { key: "fileStorage-StoreFileSubmitted", handler: createStoreFile },
-  { key: "fileStorage-NodeRegisted", handler: registerNode },
+  { key: "fileStorage-FileAdded", handler: createStoreFile },
+  { key: "fileStorage-NodeRegistered", handler: registerNode },
   { key: "fileStorage-RoundEnded", handler: roundEnd },
 ]);
 

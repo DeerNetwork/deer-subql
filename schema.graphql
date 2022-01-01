@@ -280,7 +280,7 @@ type StorageStoreFile @entity {
   currentOrderId: String
   founds: [StorageStoreFileFund] @derivedFrom(field: "storeFile")
   orders: [StorageFileOrder] @derivedFrom(field: "storeFile")
-  replicas: [StorageFileOrderReplica] @derivedFrom(field: "storeFile")
+  replicas: [StorageFileReplica] @derivedFrom(field: "storeFile")
 }
 
 enum StorageFileStatus {
@@ -304,13 +304,16 @@ type StorageFileOrder @entity {
   id: ID!
 
   fee: BigInt
+  renew: Int
+  
   fileSize: BigInt
   expireAt: BigInt
   addedAt: BigInt
   deletedAt: BigInt
+  currentReplicaIds: [String]
 
   storeFile: StorageStoreFile
-  replicas: [StorageFileOrderReplica] @derivedFrom(field: "order")
+  replicas: [StorageFileReplica] @derivedFrom(field: "order")
 }
 
 type StorageNode @entity {
@@ -326,11 +329,10 @@ type StorageNode @entity {
   reportedAt: BigInt
 
   reports: [StorageNodeReport] @derivedFrom(field: "node")
-  replicas: [StorageFileOrderReplica] @derivedFrom(field: "node")
+  replicas: [StorageFileReplica] @derivedFrom(field: "node")
 }
 
-
-type StorageFileOrderReplica @entity {
+type StorageFileReplica @entity {
   id: ID!
 
   addedAt: BigInt
@@ -365,10 +367,11 @@ type StorageNodeReport @entity {
   rid: Int
   used: BigInt
   power: BigInt
-  mineReward: BigInt
-  shareStoreReward: BigInt
-  directStoreReward: BigInt
-  slash: BigInt
+  # deposit: BigInt
+  # mineReward: BigInt
+  # shareStoreReward: BigInt
+  # directStoreReward: BigInt
+  # slash: BigInt
 
   extrinsic: Extrinsic
   timestamp: Date

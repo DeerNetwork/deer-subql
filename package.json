@@ -19,6 +19,7 @@
   "license": "MIT",
   "devDependencies": {
     "@polkadot/api": "^6",
+    "@subql/cli": "^0.16.2",
     "@subql/node": "^0.26.0",
     "@subql/types": "^0.12.0",
     "@typescript-eslint/eslint-plugin": "^5.4.0",
