@@ -21,7 +21,6 @@ import {
   PalletStorageNodeInfo,
   PalletStorageRegisterInfo,
   PalletStorageRewardInfo,
-  PalletStorageStashInfo,
   PalletStorageSummaryStats,
 } from "@polkadot/types/lookup";
 
@@ -57,7 +56,7 @@ export const registerNode: EventHandler = async ({ rawEvent }) => {
 };
 
 export const roundEnd: EventHandler = async ({ rawEvent, event }) => {
-  const [roundIndex, unpaid] = rawEvent.event.data as unknown as [u32, Balance];
+  const [roundIndex, mine] = rawEvent.event.data as unknown as [u32, Balance];
   const prevIndex = roundIndex.sub(new BN(1));
   const [roundReward, prevRoundReward, roundSummary] = (await api.queryMulti([
     [api.query.fileStorage.roundsReward, roundIndex],
@@ -78,7 +77,7 @@ export const roundEnd: EventHandler = async ({ rawEvent, event }) => {
   const prevRound = await getReportRound(prevIndex);
   prevRound.paidMineReard = prevRoundReward.paidMineReward.toBigInt();
   prevRound.paidStoreReward = prevRoundReward.paidStoreReward.toBigInt();
-  prevRound.unpaid = unpaid.toBigInt();
+  prevRound.mine = mine.toBigInt();
   await prevRound.save();
 };
 
@@ -109,7 +108,21 @@ export async function report({
     ({ event }) =>
       event.section === "fileStorage" && event.method === "FileStored"
   );
-  const [reporter, machineId] = event.data as unknown as [AccountId32, Bytes];
+  const [
+    reporter,
+    machineId,
+    mineReward,
+    shareStoreReward,
+    DirectStoreReward,
+    slash,
+  ] = event.data as unknown as [
+    AccountId32,
+    Bytes,
+    Balance,
+    Balance,
+    Balance,
+    Balance
+  ];
   const currentRound = await api.query.fileStorage.currentRound();
   const node = await syncNode(reporter, machineId);
   const round = await getReportRound(currentRound);
@@ -122,7 +135,11 @@ export async function report({
     rid: rid.toNumber(),
     used: node.used,
     power: node.power,
-    // TODO
+    deposit: node.deposit,
+    mineReward: mineReward.toBigInt(),
+    shareStoreReward: shareStoreReward.toBigInt(),
+    directStoreReward: DirectStoreReward.toBigInt(),
+    slash: slash.toBigInt(),
     extrinsicId: call.extrinsicId,
     timestamp: call.timestamp,
   });
@@ -292,39 +309,32 @@ async function syncNode(owner: AccountId32, machineId: Bytes) {
   if (!node) {
     node = new StorageNode(id);
   }
-  const [maybeRegister, maybeStashInfo, maybeNodeInfo] = (await api.queryMulti([
+  const [maybeRegister, maybeNodeInfo] = (await api.queryMulti([
     [api.query.fileStorage.registers, machineId],
-    [api.query.fileStorage.stashs, owner],
     [api.query.fileStorage.nodes, owner],
-  ])) as [
-    Option<PalletStorageRegisterInfo>,
-    Option<PalletStorageStashInfo>,
-    Option<PalletStorageNodeInfo>
-  ];
+  ])) as [Option<PalletStorageRegisterInfo>, Option<PalletStorageNodeInfo>];
   const registerInfo = maybeRegister.unwrap() as PalletStorageRegisterInfo;
-  const stashInfo = maybeStashInfo.unwrap() as PalletStorageStashInfo;
+  const nodeInfo = maybeNodeInfo.unwrap() as PalletStorageNodeInfo;
   node.enclave = registerInfo.enclave.toString();
   const ownerAccount = await ensureAccount(owner.toString());
-  const stasherAccount = await ensureAccount(stashInfo.stasher.toString());
+  const stasherAccount = await ensureAccount(nodeInfo.stash.toString());
   node.ownerId = ownerAccount.id;
   node.stasherId = stasherAccount.id;
-  node.deposit = stashInfo.deposit.toBigInt();
-  if (maybeNodeInfo.isSome) {
-    const nodeInfo = maybeNodeInfo.unwrap() as PalletStorageNodeInfo;
-    node.rid = nodeInfo.rid.toNumber();
-    node.used = nodeInfo.used.toBigInt();
-    node.power = nodeInfo.power.toBigInt();
-    node.reportedAt = nodeInfo.reportedAt.toBigInt();
-  }
+  node.deposit = nodeInfo.deposit.toBigInt();
+  node.rid = nodeInfo.rid.toNumber();
+  node.used = nodeInfo.used.toBigInt();
+  node.slashUsed = nodeInfo.slashUsed.toBigInt();
+  node.power = nodeInfo.power.toBigInt();
+  node.reportedAt = nodeInfo.reportedAt.toBigInt();
   await node.save();
   return node;
 }
 
 async function ensureNode(owner: AccountId32 | string, machineId?: Bytes) {
   if (!machineId) {
-    const maybeStashInfo = await api.query.fileStorage.stashs(owner);
-    const stashInfo = maybeStashInfo.unwrap();
-    machineId = stashInfo.machineId.unwrap();
+    const maybeNodeInfo = await api.query.fileStorage.nodes(owner);
+    const nodeInfo = maybeNodeInfo.unwrap();
+    machineId = nodeInfo.machineId.unwrap();
   }
   const id = machineId.toString();
   let node = await StorageNode.get(id);
@@ -349,7 +359,7 @@ async function getReportRound(roundIndex: AnyNumber) {
     reportRound.mineReward = roundReward.mineReward.toBigInt();
     reportRound.paidMineReard = roundReward.paidMineReward.toBigInt();
     reportRound.paidStoreReward = roundReward.paidStoreReward.toBigInt();
-    reportRound.unpaid = BigInt(0);
+    reportRound.mine = BigInt(0);
     await reportRound.save();
   }
   return reportRound;

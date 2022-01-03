@@ -326,6 +326,7 @@ type StorageNode @entity {
   rid: Int
   used: BigInt
   power: BigInt
+  slashUsed: BigInt
   reportedAt: BigInt
 
   reports: [StorageNodeReport] @derivedFrom(field: "node")
@@ -352,7 +353,7 @@ type StorageReportRound @entity {
   storeReward: BigInt
   paidMineReard: BigInt
   paidStoreReward: BigInt
-  unpaid: BigInt
+  mine: BigInt
   endedAt: BigInt
 
   reports: [StorageNodeReport] @derivedFrom(field: "round")
@@ -367,11 +368,11 @@ type StorageNodeReport @entity {
   rid: Int
   used: BigInt
   power: BigInt
-  # deposit: BigInt
-  # mineReward: BigInt
-  # shareStoreReward: BigInt
-  # directStoreReward: BigInt
-  # slash: BigInt
+  deposit: BigInt
+  mineReward: BigInt
+  shareStoreReward: BigInt
+  directStoreReward: BigInt
+  slash: BigInt
 
   extrinsic: Extrinsic
   timestamp: Date
