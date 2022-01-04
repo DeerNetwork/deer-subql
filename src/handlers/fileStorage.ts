@@ -42,6 +42,7 @@ export const createStoreFile: EventHandler = async ({ rawEvent, event }) => {
     storeFileId: file.id,
     fee: fee.toBigInt(),
     extrinsicId: event.extrinsicId,
+    blockNumber: event.blockNumber,
     timestamp: event.timestamp,
   });
   await fund.save();
@@ -130,7 +131,7 @@ export async function report({
 
   const nodeReport = StorageNodeReport.create({
     id: call.id,
-    nodeId: node.id,
+    reporterId: node.id,
     roundId: round.id,
     rid: rid.toNumber(),
     used: node.used,
@@ -141,6 +142,7 @@ export async function report({
     directStoreReward: DirectStoreReward.toBigInt(),
     slash: slash.toBigInt(),
     extrinsicId: call.extrinsicId,
+    blockNumber,
     timestamp: call.timestamp,
   });
   await nodeReport.save();
@@ -156,11 +158,12 @@ export async function report({
     ...delFiles,
     ...newOrders,
   ]);
+  const getOrderId = (cid: Bytes) => cidToString(cid) + "-" + call.id;
   const getReplicaId = (node: AccountId32, cid: Bytes) =>
-    node.toString() + "-" + cid + "-" + blockNumber;
+    node.toString() + "-" + cidToString(cid) + "-" + blockNumber;
   await Promise.all([
     ...removeOrders.map(async (cid) => {
-      const file = await StorageStoreFile.get(cid.toString());
+      const file = await StorageStoreFile.get(cidToString(cid));
       if (file.currentOrderId) {
         await setFileOrderDeteleted(file, blockNumber);
       }
@@ -169,12 +172,12 @@ export async function report({
     }),
     ...newOrders.map(async (cid) => {
       const file = await syncStoreFile(cid);
-      const fileOrder = maybeFileOrders[cid.toString()].unwrap();
+      const fileOrder = maybeFileOrders[cidToString(cid)].unwrap();
       const currentReplicaIds = fileOrder.replicas.map((node) =>
         getReplicaId(node, cid)
       );
       const order = StorageFileOrder.create({
-        id: cid.toString() + "-" + call.id,
+        id: getOrderId(cid),
         fee: fileOrder.fee.toBigInt(),
         fileSize: fileOrder.fileSize.toBigInt(),
         expireAt: fileOrder.expireAt.toBigInt(),
@@ -193,7 +196,7 @@ export async function report({
             id: getReplicaId(node, cid),
             addedAt: blockNumber,
             orderId: order.id,
-            nodeId: repoterNode.id,
+            reporterId: repoterNode.id,
             storeFileId: file.id,
           });
           await replica.save();
@@ -203,14 +206,15 @@ export async function report({
   ]);
   await Promise.all([
     ...maybeChangeFiles.map(async (cid) => {
-      const maybeFileOrder = maybeFileOrders[cid.toString()];
+      const maybeFileOrder = maybeFileOrders[cidToString(cid)];
       if (maybeFileOrder.isNone) return;
       const fileOrder = maybeFileOrder.unwrap();
-      const file = await StorageStoreFile.get(cid.toString());
+      const file = await StorageStoreFile.get(cidToString(cid));
       if (!file || !file.currentOrderId) return;
       const order = await StorageFileOrder.get(file.currentOrderId);
       if (order.expireAt !== fileOrder.expireAt.toBigInt()) {
         order.renew += 1;
+        order.expireAt = fileOrder.expireAt.toBigInt();
       }
       const newCurrentReplicaIds = [];
       const toRemoveReplicas = order.currentReplicaIds.slice();
@@ -232,7 +236,7 @@ export async function report({
             id,
             addedAt: blockNumber,
             orderId: order.id,
-            nodeId: repoterNode.id,
+            reporterId: repoterNode.id,
             storeFileId: file.id,
           });
           await replica.save();
@@ -250,13 +254,13 @@ export async function report({
       await order.save();
     }),
     ...delFiles.map(async (cid) => {
-      const maybeFileOrder = maybeFileOrders[cid.toString()];
+      const maybeFileOrder = maybeFileOrders[cidToString(cid)];
       if (maybeFileOrder.isNone) return;
-      const file = await StorageStoreFile.get(cid.toString());
+      const file = await StorageStoreFile.get(cidToString(cid));
       if (!file || !file.currentOrderId) return;
       const order = await StorageFileOrder.get(file.currentOrderId);
       const replicaId = order.currentReplicaIds.find(
-        (v) => v.split("-")[1] === cid.toString()
+        (v) => v.split("-")[1] === cidToString(cid)
       );
       if (replicaId) {
         const replica = await StorageFileReplica.get(replicaId);
@@ -270,12 +274,11 @@ export async function report({
 }
 
 async function syncStoreFile(cid: Bytes) {
-  const id = cid.toString();
+  const id = cidToString(cid);
   let file = await StorageStoreFile.get(id);
   if (!file) {
     file = new StorageStoreFile(id);
   }
-  maybeSetCid(file, cid);
   const maybeStoreFile = await api.query.fileStorage.storeFiles(cid);
   const storeFile = maybeStoreFile.unwrap();
   file.reserved = storeFile.reserved.toBigInt();
@@ -294,15 +297,15 @@ async function syncStoreFile(cid: Bytes) {
   return file;
 }
 
-function maybeSetCid(file: StorageStoreFile, cid: Bytes) {
-  if (!isUtf8(cid)) return;
+function cidToString(cid: Bytes) {
+  if (!isUtf8(cid)) return cid.toString();
   try {
     const maybeCid = cid.toUtf8();
     CID.parse(maybeCid);
-    file.cid = maybeCid;
+    return maybeCid;
   } catch {}
+  return cid.toString();
 }
-
 async function syncNode(owner: AccountId32, machineId: Bytes) {
   const id = machineId.toString();
   let node = await StorageNode.get(id);
@@ -316,14 +319,13 @@ async function syncNode(owner: AccountId32, machineId: Bytes) {
   const registerInfo = maybeRegister.unwrap() as PalletStorageRegisterInfo;
   const nodeInfo = maybeNodeInfo.unwrap() as PalletStorageNodeInfo;
   node.enclave = registerInfo.enclave.toString();
-  const ownerAccount = await ensureAccount(owner.toString());
-  const stasherAccount = await ensureAccount(nodeInfo.stash.toString());
-  node.ownerId = ownerAccount.id;
-  node.stasherId = stasherAccount.id;
+  const controllerAccount = await ensureAccount(owner.toString());
+  const stashAccount = await ensureAccount(nodeInfo.stash.toString());
+  node.controllerId = controllerAccount.id;
+  node.stashId = stashAccount.id;
   node.deposit = nodeInfo.deposit.toBigInt();
   node.rid = nodeInfo.rid.toNumber();
   node.used = nodeInfo.used.toBigInt();
-  node.slashUsed = nodeInfo.slashUsed.toBigInt();
   node.power = nodeInfo.power.toBigInt();
   node.reportedAt = nodeInfo.reportedAt.toBigInt();
   await node.save();
@@ -367,7 +369,7 @@ async function getReportRound(roundIndex: AnyNumber) {
 
 async function batchQueryFileOrders(cids: Bytes[]): Promise<BatchFileOrders> {
   if (cids.length === 0) return {};
-  const allCids = Array.from(new Set(cids.map((v) => v.toString())));
+  const allCids = Array.from(new Set(cids.map((v) => cidToString(v))));
   const maybeFileOrders: Option<PalletStorageFileOrder>[] =
     await api.queryMulti(
       allCids.map((cid) => {

@@ -42,6 +42,7 @@ export const dealNftOrder: EventHandler = async ({ rawEvent, event }) => {
     quantity: quantity.toBigInt(),
     fee: fee.toBigInt(),
     extrinsicId: event.extrinsicId,
+    blockNumber: event.blockNumber,
     timestamp: event.timestamp,
   });
   await orderDeal.save();

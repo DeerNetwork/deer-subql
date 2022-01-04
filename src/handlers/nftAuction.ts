@@ -35,6 +35,7 @@ export const bidNftDutchAuction: EventHandler = async ({ rawEvent, event }) => {
     price: price.toBigInt(),
     bidAt: event.blockNumber,
     extrinsicId: event.extrinsicId,
+    blockNumber: event.blockNumber,
     timestamp: event.timestamp,
   });
   await bid.save();
@@ -72,6 +73,7 @@ export const redeemNftDutchAuction: EventHandler = async ({
       price: price.toBigInt(),
       bidAt: event.blockNumber,
       extrinsicId: event.extrinsicId,
+      blockNumber: event.blockNumber,
       timestamp: event.timestamp,
     });
     await bid.save();
@@ -109,6 +111,7 @@ export const bidNftEnglishAuction: EventHandler = async ({
     price: price.toBigInt(),
     bidAt: event.blockNumber,
     extrinsicId: event.extrinsicId,
+    blockNumber: event.blockNumber,
     timestamp: event.timestamp,
   });
   await bid.save();

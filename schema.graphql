@@ -89,6 +89,7 @@ type Transfer @entity {
   amount: BigInt
 
   extrinsic: Extrinsic
+  blockNumber: BigInt
   timestamp: Date
 }
 
@@ -148,6 +149,7 @@ type NftTokenBurn @entity {
   quantity: BigInt
 
   extrinsic: Extrinsic
+  blockNumber: BigInt
   timestamp: Date
 }
 
@@ -162,6 +164,7 @@ type NftTokenTransfer @entity {
   reason: String
 
   extrinsic: Extrinsic
+  blockNumber: BigInt
   timestamp: Date
 }
 
@@ -207,6 +210,7 @@ type NftAuctionBid @entity {
   bidAt: BigInt
 
   extrinsic: Extrinsic
+  blockNumber: BigInt
   timestamp: Date
 }
 
@@ -244,6 +248,7 @@ type NftOrderDeal @entity {
   fee: BigInt
 
   extrinsic: Extrinsic
+  blockNumber: BigInt
   timestamp: Date
 }
 
@@ -269,7 +274,6 @@ enum NftOfferStatus {
 type StorageStoreFile @entity {
   id: ID!
 
-  cid: String
   reserved: BigInt
   baseFee: BigInt
   addedAt: BigInt
@@ -297,6 +301,7 @@ type StorageStoreFileFund @entity {
   funder: Account
 
   extrinsic: Extrinsic
+  blockNumber: BigInt
   timestamp: Date
 }
 
@@ -319,18 +324,17 @@ type StorageFileOrder @entity {
 type StorageNode @entity {
   id: ID!
 
-  owner: Account
-  stasher: Account
+  controller: Account @index
+  stash: Account
   enclave: String
   deposit: BigInt
   rid: Int
   used: BigInt
   power: BigInt
-  slashUsed: BigInt
   reportedAt: BigInt
 
-  reports: [StorageNodeReport] @derivedFrom(field: "node")
-  replicas: [StorageFileReplica] @derivedFrom(field: "node")
+  reports: [StorageNodeReport] @derivedFrom(field: "reporter")
+  replicas: [StorageFileReplica] @derivedFrom(field: "reporter")
 }
 
 type StorageFileReplica @entity {
@@ -339,7 +343,7 @@ type StorageFileReplica @entity {
   addedAt: BigInt
   deletedAt: BigInt
 
-  node: StorageNode
+  reporter: StorageNode
   order: StorageFileOrder
   storeFile: StorageStoreFile
 }
@@ -362,7 +366,7 @@ type StorageReportRound @entity {
 type StorageNodeReport @entity {
   id: ID!
 
-  node: StorageNode
+  reporter: StorageNode
   round: StorageReportRound
 
   rid: Int
@@ -375,5 +379,6 @@ type StorageNodeReport @entity {
   slash: BigInt
 
   extrinsic: Extrinsic
+  blockNumber: BigInt
   timestamp: Date
 }
