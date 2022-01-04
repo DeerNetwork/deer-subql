@@ -42,7 +42,6 @@ export const createStoreFile: EventHandler = async ({ rawEvent, event }) => {
     storeFileId: file.id,
     fee: fee.toBigInt(),
     extrinsicId: event.extrinsicId,
-    blockNumber: event.blockNumber,
     timestamp: event.timestamp,
   });
   await fund.save();
@@ -142,7 +141,6 @@ export async function report({
     directStoreReward: DirectStoreReward.toBigInt(),
     slash: slash.toBigInt(),
     extrinsicId: call.extrinsicId,
-    blockNumber,
     timestamp: call.timestamp,
   });
   await nodeReport.save();

@@ -55,7 +55,6 @@ export const createNftTransferHistory: EventHandler = async ({
     toId: toAccount.id,
     reason: reason.toString(),
     extrinsicId: event.extrinsicId,
-    blockNumber: event.blockNumber,
     timestamp: event.timestamp,
   });
   await transfer.save();
@@ -79,7 +78,6 @@ export const createNftBurnHistory: EventHandler = async ({
     quantity: quantity.toBigInt(),
     ownerId: ownerAccount.id,
     extrinsicId: event.extrinsicId,
-    blockNumber: event.blockNumber,
     timestamp: event.timestamp,
   });
   await burn.save();

@@ -21,7 +21,6 @@ export const createTransfer: EventHandler = async ({ rawEvent, event }) => {
     toId: toAccount.id,
     amount: amount.toBigInt(),
     extrinsicId: event.extrinsicId,
-    blockNumber: event.blockNumber,
     timestamp: event.timestamp,
   });
   await transfer.save();

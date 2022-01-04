@@ -89,7 +89,6 @@ type Transfer @entity {
   amount: BigInt
 
   extrinsic: Extrinsic
-  blockNumber: BigInt
   timestamp: Date
 }
 
@@ -149,7 +148,6 @@ type NftTokenBurn @entity {
   quantity: BigInt
 
   extrinsic: Extrinsic
-  blockNumber: BigInt
   timestamp: Date
 }
 
@@ -164,7 +162,6 @@ type NftTokenTransfer @entity {
   reason: String
 
   extrinsic: Extrinsic
-  blockNumber: BigInt
   timestamp: Date
 }
 
@@ -210,7 +207,6 @@ type NftAuctionBid @entity {
   bidAt: BigInt
 
   extrinsic: Extrinsic
-  blockNumber: BigInt
   timestamp: Date
 }
 
@@ -248,7 +244,6 @@ type NftOrderDeal @entity {
   fee: BigInt
 
   extrinsic: Extrinsic
-  blockNumber: BigInt
   timestamp: Date
 }
 
@@ -301,7 +296,6 @@ type StorageStoreFileFund @entity {
   funder: Account
 
   extrinsic: Extrinsic
-  blockNumber: BigInt
   timestamp: Date
 }
 
@@ -379,6 +373,5 @@ type StorageNodeReport @entity {
   slash: BigInt
 
   extrinsic: Extrinsic
-  blockNumber: BigInt
   timestamp: Date
 }
