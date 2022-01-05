@@ -167,8 +167,8 @@ export async function report({
         );
         await Promise.all(
           replicas.map(async (replica) => {
-            if (!replica.deletedAt) {
-              replica.deletedAt = blockNumber;
+            if (!replica.deleteAt) {
+              replica.deleteAt = blockNumber;
               await replica.save();
             }
           })
@@ -188,7 +188,7 @@ export async function report({
         id: getLiquidationId(file),
         fee: fileInfo.fee.toBigInt(),
         startAt: blockNumber,
-        expireAt: fileInfo.expireAt.toBigInt(),
+        liquidateAt: fileInfo.liquidateAt.toBigInt(),
         currentReplicaIds,
         fileId: file.id,
       });
@@ -200,7 +200,7 @@ export async function report({
           const repoterNode = await ensureNode(node);
           const replica = StorageFileReplica.create({
             id: getReplicaId(node, cid),
-            addedAt: blockNumber,
+            addAt: blockNumber,
             liquidationId: liquidation.id,
             machineId: repoterNode.id,
             fileId: file.id,
@@ -223,15 +223,15 @@ export async function report({
       );
       const oldCurrentReplicaIds = liquidation.currentReplicaIds;
       const newLiquidation =
-        liquidation.expireAt !== fileInfo.expireAt.toBigInt();
+        liquidation.liquidateAt !== fileInfo.liquidateAt.toBigInt();
       if (newLiquidation) {
         file.countLiquidate += 1;
-        file.expireAt = fileInfo.expireAt.toBigInt();
+        file.liquidateAt = fileInfo.liquidateAt.toBigInt();
         liquidation = StorageFileLiquidation.create({
           id: getLiquidationId(file),
           fee: fileInfo.fee.toBigInt(),
           startAt: blockNumber,
-          expireAt: fileInfo.expireAt.toBigInt(),
+          liquidateAt: fileInfo.liquidateAt.toBigInt(),
           fileId: file.id,
         });
         await liquidation.save();
@@ -262,7 +262,7 @@ export async function report({
           const id = getReplicaId(reporter, cid);
           const replica = StorageFileReplica.create({
             id,
-            addedAt: blockNumber,
+            addAt: blockNumber,
             liquidationId: liquidation.id,
             machineId: repoterNode.id,
             fileId: file.id,
@@ -273,7 +273,7 @@ export async function report({
         ...oldCurrentReplicaIds.map(async (id) => {
           const replica = await StorageFileReplica.get(id);
           if (replica) {
-            replica.deletedAt = blockNumber;
+            replica.deleteAt = blockNumber;
             await replica.save();
           }
         }),
@@ -301,7 +301,7 @@ export async function report({
         const replicaId = currentReplicaIds.splice(index, 1)[0];
         const replica = await StorageFileReplica.get(replicaId);
         if (replica) {
-          replica.deletedAt = blockNumber;
+          replica.deleteAt = blockNumber;
           await replica.save();
         }
         liquidation.currentReplicaIds = currentReplicaIds;
@@ -325,13 +325,13 @@ async function syncFile(cid: Bytes) {
   file.baseFee = fileInfo.baseFee.toBigInt();
   file.fileSize = fileInfo.fileSize.toBigInt();
   file.fee = fileInfo.fee.toBigInt();
-  file.expireAt = fileInfo.expireAt.toBigInt();
-  if (file.addedAt !== fileInfo.addedAt.toBigInt()) {
+  file.liquidateAt = fileInfo.liquidateAt.toBigInt();
+  if (file.addAt !== fileInfo.addAt.toBigInt()) {
     file.countAdd += 1;
     file.countLiquidate = 0;
-    file.addedAt = fileInfo.addedAt.toBigInt();
+    file.addAt = fileInfo.addAt.toBigInt();
   }
-  if (file.expireAt === BigInt(0)) {
+  if (file.liquidateAt === BigInt(0)) {
     file.status = StorageFileStatus.WAITING;
   } else {
     file.status = StorageFileStatus.STORING;

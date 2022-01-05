@@ -273,8 +273,8 @@ type StorageFile @entity {
   baseFee: BigInt
   fileSize: BigInt
   fee: BigInt
-  expireAt: BigInt
-  addedAt: BigInt
+  liquidateAt: BigInt
+  addAt: BigInt
 
   status: StorageFileStatus
   countAdd: Int
@@ -309,7 +309,7 @@ type StorageFileLiquidation @entity {
 
   fee: BigInt
   startAt: BigInt
-  expireAt: BigInt
+  liquidateAt: BigInt
   currentReplicaIds: [String]
 
   file: StorageFile
@@ -336,8 +336,8 @@ type StorageNode @entity {
 type StorageFileReplica @entity {
   id: ID!
 
-  addedAt: BigInt
-  deletedAt: BigInt
+  addAt: BigInt
+  deleteAt: BigInt
 
   liquidation: StorageFileLiquidation
   machine: StorageNode
