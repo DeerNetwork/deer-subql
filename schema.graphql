@@ -112,7 +112,7 @@ type NftToken @entity {
   class: NftClass
   creator: Account
 
-  localTokenId: String
+  tokenId: String
   metadata: NftMetadata
   metadataRaw: String
   deposit: BigInt
@@ -277,7 +277,8 @@ type StorageFile @entity {
   addedAt: BigInt
 
   status: StorageFileStatus
-  addIndex: Int
+  countAdd: Int
+  countLiquidate: Int
   currentLiquidationId: String
 
   founds: [StorageFileFund] @derivedFrom(field: "file")

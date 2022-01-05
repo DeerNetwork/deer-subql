@@ -85,7 +85,7 @@ export async function report({
   rawExtrinsic,
 }: DispatchedCallData) {
   if (!call.isSuccess) return;
-  const [rid, , , addFiles, delFiles, settleFiles] =
+  const [rid, , , addFiles, delFiles, liquidateFiles] =
     rawCall.args as unknown as [
       u64,
       u64,
@@ -148,20 +148,31 @@ export async function report({
   const newLiquidateCids: Bytes[] = storeFileNewOrderEvents.map(
     ({ event }) => event.data[0] as unknown as Bytes
   );
-  const maybeChangeCids = [...addFiles.map(([cid]) => cid), ...settleFiles];
+  const maybeChangeCids = [...addFiles.map(([cid]) => cid), ...liquidateFiles];
   const maybeFiles = await batchQueryFiles([
     ...maybeChangeCids,
     ...delFiles,
     ...newLiquidateCids,
   ]);
-  const getLiquidationId = (cid: Bytes) => cidToString(cid) + "-" + call.id;
+  const getLiquidationId = (file: StorageFile) =>
+    file.id + "-" + file.countAdd + "-" + file.countLiquidate;
   const getReplicaId = (node: AccountId32, cid: Bytes) =>
-    node.toString() + "-" + cidToString(cid) + "-" + blockNumber;
+    cidToString(cid) + "-" + node.toString() + "-" + blockNumber;
   await Promise.all([
     ...removeCids.map(async (cid) => {
       const file = await StorageFile.get(cidToString(cid));
       if (file.currentLiquidationId) {
-        await setFileDeteleted(file, blockNumber);
+        const replicas = await StorageFileReplica.getByLiquidationId(
+          file.currentLiquidationId
+        );
+        await Promise.all(
+          replicas.map(async (replica) => {
+            if (!replica.deletedAt) {
+              replica.deletedAt = blockNumber;
+              await replica.save();
+            }
+          })
+        );
       }
       file.status = StorageFileStatus.INVALID;
       await file.save();
@@ -172,8 +183,9 @@ export async function report({
       const currentReplicaIds = fileInfo.replicas.map((node) =>
         getReplicaId(node, cid)
       );
+      file.countLiquidate += 1;
       const liquidation = StorageFileLiquidation.create({
-        id: getLiquidationId(cid),
+        id: getLiquidationId(file),
         fee: fileInfo.fee.toBigInt(),
         startAt: blockNumber,
         expireAt: fileInfo.expireAt.toBigInt(),
@@ -200,6 +212,7 @@ export async function report({
   ]);
   await Promise.all([
     ...maybeChangeCids.map(async (cid) => {
+      if (newLiquidateCids.find((v) => v.eq(cid))) return;
       const maybeFile = maybeFiles[cidToString(cid)];
       if (maybeFile.isNone) return;
       const fileInfo = maybeFile.unwrap();
@@ -209,30 +222,44 @@ export async function report({
         file.currentLiquidationId
       );
       const oldCurrentReplicaIds = liquidation.currentReplicaIds;
-      if (liquidation.expireAt !== fileInfo.expireAt.toBigInt()) {
+      const newLiquidation =
+        liquidation.expireAt !== fileInfo.expireAt.toBigInt();
+      if (newLiquidation) {
+        file.countLiquidate += 1;
+        file.expireAt = fileInfo.expireAt.toBigInt();
         liquidation = StorageFileLiquidation.create({
-          id: getLiquidationId(cid),
+          id: getLiquidationId(file),
           fee: fileInfo.fee.toBigInt(),
           startAt: blockNumber,
           expireAt: fileInfo.expireAt.toBigInt(),
           fileId: file.id,
         });
+        await liquidation.save();
       }
       const newCurrentReplicaIds = [];
+      const keepReplicaIds = [];
       const toAddReplicas = [];
-      for (const node of fileInfo.replicas.map((v) => v.toString())) {
-        const index = oldCurrentReplicaIds.findIndex((v) => v.startsWith(node));
+      for (const reporter of fileInfo.replicas.map((v) => v.toString())) {
+        const index = oldCurrentReplicaIds.findIndex((v) =>
+          v.includes(reporter)
+        );
         if (index > -1) {
-          newCurrentReplicaIds.push(oldCurrentReplicaIds[index]);
+          keepReplicaIds.push(oldCurrentReplicaIds[index]);
           oldCurrentReplicaIds.splice(index, 1);
         } else {
-          toAddReplicas.push(node);
+          toAddReplicas.push(reporter);
         }
       }
       await Promise.all([
-        ...toAddReplicas.map(async (node) => {
-          const repoterNode = await ensureNode(node);
-          const id = getReplicaId(node, cid);
+        ...keepReplicaIds.map(async (id) => {
+          const replica = await StorageFileReplica.get(id);
+          replica.liquidationId = liquidation.id;
+          await replica.save();
+          newCurrentReplicaIds.push(id);
+        }),
+        ...toAddReplicas.map(async (reporter) => {
+          const repoterNode = await ensureNode(reporter);
+          const id = getReplicaId(reporter, cid);
           const replica = StorageFileReplica.create({
             id,
             addedAt: blockNumber,
@@ -253,6 +280,10 @@ export async function report({
       ]);
       liquidation.currentReplicaIds = newCurrentReplicaIds;
       await liquidation.save();
+      if (newLiquidation) {
+        file.currentLiquidationId = liquidation.id;
+        await file.save();
+      }
     }),
     ...delFiles.map(async (cid) => {
       const maybeFile = maybeFiles[cidToString(cid)];
@@ -262,15 +293,19 @@ export async function report({
       const liquidation = await StorageFileLiquidation.get(
         file.currentLiquidationId
       );
-      const replicaId = liquidation.currentReplicaIds.find(
-        (v) => v.split("-")[1] === cidToString(cid)
+      const { currentReplicaIds } = liquidation;
+      const index = currentReplicaIds.findIndex(
+        (v) => v.split("-")[0] === cidToString(cid)
       );
-      if (replicaId) {
+      if (index > -1) {
+        const replicaId = currentReplicaIds.splice(index, 1)[0];
         const replica = await StorageFileReplica.get(replicaId);
         if (replica) {
           replica.deletedAt = blockNumber;
           await replica.save();
         }
+        liquidation.currentReplicaIds = currentReplicaIds;
+        await liquidation.save();
       }
     }),
   ]);
@@ -281,6 +316,8 @@ async function syncFile(cid: Bytes) {
   let file = await StorageFile.get(id);
   if (!file) {
     file = new StorageFile(id);
+    file.countAdd = 0;
+    file.countLiquidate = 0;
   }
   const maybeFileInfo = await api.query.fileStorage.files(cid);
   const fileInfo = maybeFileInfo.unwrap();
@@ -290,17 +327,14 @@ async function syncFile(cid: Bytes) {
   file.fee = fileInfo.fee.toBigInt();
   file.expireAt = fileInfo.expireAt.toBigInt();
   if (file.addedAt !== fileInfo.addedAt.toBigInt()) {
+    file.countAdd += 1;
+    file.countLiquidate = 0;
     file.addedAt = fileInfo.addedAt.toBigInt();
-    if (Number.isInteger(file.addIndex)) {
-      file.addIndex = file.addIndex + 1;
-    } else {
-      file.addIndex = 0;
-    }
   }
-  if (file.baseFee === BigInt(0)) {
-    file.status = StorageFileStatus.STORING;
-  } else {
+  if (file.expireAt === BigInt(0)) {
     file.status = StorageFileStatus.WAITING;
+  } else {
+    file.status = StorageFileStatus.STORING;
   }
   await file.save();
   return file;
@@ -391,18 +425,4 @@ async function batchQueryFiles(cids: Bytes[]): Promise<BatchFiles> {
 
 interface BatchFiles {
   [k: string]: Option<PalletStorageFileInfo>;
-}
-
-async function setFileDeteleted(file: StorageFile, blockNumber: bigint) {
-  const liquidation = await StorageFile.get(file.currentLiquidationId);
-  await liquidation.save();
-  const replicas = await StorageFileReplica.getByLiquidationId(liquidation.id);
-  await Promise.all(
-    replicas.map(async (replica) => {
-      if (!replica.deletedAt) {
-        replica.deletedAt = blockNumber;
-        await replica.save();
-      }
-    })
-  );
 }

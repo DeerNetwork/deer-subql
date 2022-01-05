@@ -129,7 +129,7 @@ async function getNftToken(classId: u32, localTokenId: u32) {
     nftToken = NftToken.create({
       id,
       classId: classId.toString(),
-      localTokenId: localTokenId.toString(),
+      tokenId: localTokenId.toString(),
       creatorId: creatorAccount.id,
       deposit: tokenDetails.deposit.toBigInt(),
       quantity: tokenDetails.quantity.toBigInt(),
