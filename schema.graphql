@@ -266,21 +266,25 @@ enum NftOfferStatus {
   DEAL
 }
 
-type StorageStoreFile @entity {
+type StorageFile @entity {
   id: ID!
 
   reserved: BigInt
   baseFee: BigInt
-  addedAt: BigInt
   fileSize: BigInt
-  firstAddedAt: BigInt
-  status: StorageFileStatus
+  fee: BigInt
+  expireAt: BigInt
+  addedAt: BigInt
 
-  currentOrderId: String
-  founds: [StorageStoreFileFund] @derivedFrom(field: "storeFile")
-  orders: [StorageFileOrder] @derivedFrom(field: "storeFile")
-  replicas: [StorageFileReplica] @derivedFrom(field: "storeFile")
+  status: StorageFileStatus
+  addIndex: Int
+  currentLiquidationId: String
+
+  founds: [StorageFileFund] @derivedFrom(field: "file")
+  liquidations: [StorageFileLiquidation] @derivedFrom(field: "file")
+  replicas: [StorageFileReplica] @derivedFrom(field: "file")
 }
+
 
 enum StorageFileStatus {
   WAITING
@@ -288,31 +292,27 @@ enum StorageFileStatus {
   INVALID
 }
 
-type StorageStoreFileFund @entity {
+type StorageFileFund @entity {
   id: ID!
 
   fee: BigInt 
-  storeFile: StorageStoreFile
+  file: StorageFile
   funder: Account
 
   extrinsic: Extrinsic
   timestamp: Date
 }
 
-type StorageFileOrder @entity {
+type StorageFileLiquidation @entity {
   id: ID!
 
   fee: BigInt
-  renew: Int
-  
-  fileSize: BigInt
+  startAt: BigInt
   expireAt: BigInt
-  addedAt: BigInt
-  deletedAt: BigInt
   currentReplicaIds: [String]
 
-  storeFile: StorageStoreFile
-  replicas: [StorageFileReplica] @derivedFrom(field: "order")
+  file: StorageFile
+  replicas: [StorageFileReplica] @derivedFrom(field: "liquidation")
 }
 
 type StorageNode @entity {
@@ -326,9 +326,10 @@ type StorageNode @entity {
   used: BigInt
   power: BigInt
   reportedAt: BigInt
+  prevReportedAt: BigInt
 
-  reports: [StorageNodeReport] @derivedFrom(field: "reporter")
-  replicas: [StorageFileReplica] @derivedFrom(field: "reporter")
+  reports: [StorageReport] @derivedFrom(field: "machine")
+  replicas: [StorageFileReplica] @derivedFrom(field: "machine")
 }
 
 type StorageFileReplica @entity {
@@ -337,12 +338,12 @@ type StorageFileReplica @entity {
   addedAt: BigInt
   deletedAt: BigInt
 
-  reporter: StorageNode
-  order: StorageFileOrder
-  storeFile: StorageStoreFile
+  liquidation: StorageFileLiquidation
+  machine: StorageNode
+  file: StorageFile
 }
 
-type StorageReportRound @entity {
+type StorageSession @entity {
   id: ID!
 
   used: BigInt
@@ -353,15 +354,16 @@ type StorageReportRound @entity {
   paidStoreReward: BigInt
   mine: BigInt
   endedAt: BigInt
+  nodes: Int
 
-  reports: [StorageNodeReport] @derivedFrom(field: "round")
+  reports: [StorageReport] @derivedFrom(field: "session")
 }
 
-type StorageNodeReport @entity {
+type StorageReport @entity {
   id: ID!
 
-  reporter: StorageNode
-  round: StorageReportRound
+  machine: StorageNode
+  session: StorageSession
 
   rid: Int
   used: BigInt

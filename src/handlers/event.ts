@@ -31,7 +31,7 @@ import {
   redeemNftEnglishAuction,
 } from "./nftAuction";
 import { createTransfer } from "./balances";
-import { createStoreFile, registerNode, roundEnd } from "./fileStorage";
+import { createFile, registerNode, newSession } from "./fileStorage";
 
 const dispatch = new Dispatcher<DispatchedEventData>();
 
@@ -67,9 +67,9 @@ dispatch.batchRegist([
     handler: redeemNftEnglishAuction,
   },
   // fileStorage
-  { key: "fileStorage-FileAdded", handler: createStoreFile },
+  { key: "fileStorage-FileAdded", handler: createFile },
   { key: "fileStorage-NodeRegistered", handler: registerNode },
-  { key: "fileStorage-RoundEnded", handler: roundEnd },
+  { key: "fileStorage-NewSession", handler: newSession },
 ]);
 
 export async function ensureEvnet(event: SubstrateEvent) {

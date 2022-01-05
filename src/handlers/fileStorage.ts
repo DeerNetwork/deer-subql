@@ -7,39 +7,38 @@ import { Balance } from "@polkadot/types/interfaces";
 import { DispatchedCallData, EventHandler } from "./types";
 import {
   StorageNode,
-  StorageReportRound,
-  StorageStoreFile,
-  StorageStoreFileFund,
+  StorageSession,
+  StorageFile,
+  StorageFileFund,
   StorageFileReplica,
-  StorageFileOrder,
-  StorageNodeReport,
+  StorageReport,
   StorageFileStatus,
+  StorageFileLiquidation,
 } from "../types";
 import { ensureAccount } from "./account";
 import {
-  PalletStorageFileOrder,
+  PalletStorageFileInfo,
   PalletStorageNodeInfo,
   PalletStorageRegisterInfo,
-  PalletStorageRewardInfo,
-  PalletStorageSummaryStats,
+  PalletStorageSummaryInfo,
 } from "@polkadot/types/lookup";
 
-export const createStoreFile: EventHandler = async ({ rawEvent, event }) => {
+export const createFile: EventHandler = async ({ rawEvent, event }) => {
   const [cid, funder, fee] = rawEvent.event.data as unknown as [
     Bytes,
     AccountId32,
     Balance
   ];
-  const file = await syncStoreFile(cid);
+  const file = await syncFile(cid);
   if (file.status === StorageFileStatus.INVALID) {
     file.status = StorageFileStatus.WAITING;
     await file.save();
   }
   const funderAccount = await ensureAccount(funder.toString());
-  const fund = StorageStoreFileFund.create({
+  const fund = StorageFileFund.create({
     id: event.id,
     funderId: funderAccount.id,
-    storeFileId: file.id,
+    fileId: file.id,
     fee: fee.toBigInt(),
     extrinsicId: event.extrinsicId,
     timestamp: event.timestamp,
@@ -55,30 +54,29 @@ export const registerNode: EventHandler = async ({ rawEvent }) => {
   await syncNode(owner, machineId);
 };
 
-export const roundEnd: EventHandler = async ({ rawEvent, event }) => {
-  const [roundIndex, mine] = rawEvent.event.data as unknown as [u32, Balance];
-  const prevIndex = roundIndex.sub(new BN(1));
-  const [roundReward, prevRoundReward, roundSummary] = (await api.queryMulti([
-    [api.query.fileStorage.roundsReward, roundIndex],
-    [api.query.fileStorage.roundsReward, prevIndex],
-    [api.query.fileStorage.roundsSummary, roundIndex],
-  ])) as [
-    PalletStorageRewardInfo,
-    PalletStorageRewardInfo,
-    PalletStorageSummaryStats
+export const newSession: EventHandler = async ({ rawEvent, event }) => {
+  const [newSessionIndex, mine] = rawEvent.event.data as unknown as [
+    u32,
+    Balance
   ];
-  const currentRound = await getReportRound(roundIndex);
-  currentRound.power = roundSummary.power.toBigInt();
-  currentRound.used = roundSummary.used.toBigInt();
-  currentRound.mineReward = roundReward.mineReward.toBigInt();
-  currentRound.storeReward = roundReward.storeReward.toBigInt();
-  currentRound.endedAt = event.blockNumber;
-  await currentRound.save();
-  const prevRound = await getReportRound(prevIndex);
-  prevRound.paidMineReard = prevRoundReward.paidMineReward.toBigInt();
-  prevRound.paidStoreReward = prevRoundReward.paidStoreReward.toBigInt();
-  prevRound.mine = mine.toBigInt();
-  await prevRound.save();
+  const currentIndex = newSessionIndex.sub(new BN(1));
+  const prevIndex = newSessionIndex.sub(new BN(2));
+  const [prevSummary, currentSummary] = (await api.queryMulti([
+    [api.query.fileStorage.summarys, prevIndex],
+    [api.query.fileStorage.summarys, prevIndex],
+  ])) as [PalletStorageSummaryInfo, PalletStorageSummaryInfo];
+  const currentSession = await getStorageSession(currentIndex);
+  currentSession.power = currentSummary.power.toBigInt();
+  currentSession.used = currentSummary.used.toBigInt();
+  currentSession.mineReward = currentSummary.mineReward.toBigInt();
+  currentSession.storeReward = currentSummary.storeReward.toBigInt();
+  currentSession.endedAt = event.blockNumber;
+  currentSession.mine = mine.toBigInt();
+  await currentSession.save();
+  const prevSession = await getStorageSession(prevIndex);
+  prevSession.paidMineReard = prevSummary.paidMineReward.toBigInt();
+  prevSession.paidStoreReward = prevSummary.paidStoreReward.toBigInt();
+  await prevSession.save();
 };
 
 export async function report({
@@ -123,15 +121,15 @@ export async function report({
     Balance,
     Balance
   ];
-  const currentRound = await api.query.fileStorage.currentRound();
+  const { current } = await api.query.fileStorage.session();
   const node = await syncNode(reporter, machineId);
-  const round = await getReportRound(currentRound);
+  const session = await getStorageSession(current);
   const blockNumber = rawExtrinsic.block.block.header.number.toBigInt();
 
-  const nodeReport = StorageNodeReport.create({
+  const nodeReport = StorageReport.create({
     id: call.id,
-    reporterId: node.id,
-    roundId: round.id,
+    machineId: node.id,
+    sessionId: session.id,
     rid: rid.toNumber(),
     used: node.used,
     power: node.power,
@@ -144,58 +142,56 @@ export async function report({
     timestamp: call.timestamp,
   });
   await nodeReport.save();
-  const removeOrders: Bytes[] = storeFileDeletedEvents.map(
+  const removeCids: Bytes[] = storeFileDeletedEvents.map(
     ({ event }) => event.data[0] as unknown as Bytes
   );
-  const newOrders: Bytes[] = storeFileNewOrderEvents.map(
+  const newLiquidateCids: Bytes[] = storeFileNewOrderEvents.map(
     ({ event }) => event.data[0] as unknown as Bytes
   );
-  const maybeChangeFiles = [...addFiles.map(([cid]) => cid), ...settleFiles];
-  const maybeFileOrders = await batchQueryFileOrders([
-    ...maybeChangeFiles,
+  const maybeChangeCids = [...addFiles.map(([cid]) => cid), ...settleFiles];
+  const maybeFiles = await batchQueryFiles([
+    ...maybeChangeCids,
     ...delFiles,
-    ...newOrders,
+    ...newLiquidateCids,
   ]);
-  const getOrderId = (cid: Bytes) => cidToString(cid) + "-" + call.id;
+  const getLiquidationId = (cid: Bytes) => cidToString(cid) + "-" + call.id;
   const getReplicaId = (node: AccountId32, cid: Bytes) =>
     node.toString() + "-" + cidToString(cid) + "-" + blockNumber;
   await Promise.all([
-    ...removeOrders.map(async (cid) => {
-      const file = await StorageStoreFile.get(cidToString(cid));
-      if (file.currentOrderId) {
-        await setFileOrderDeteleted(file, blockNumber);
+    ...removeCids.map(async (cid) => {
+      const file = await StorageFile.get(cidToString(cid));
+      if (file.currentLiquidationId) {
+        await setFileDeteleted(file, blockNumber);
       }
       file.status = StorageFileStatus.INVALID;
       await file.save();
     }),
-    ...newOrders.map(async (cid) => {
-      const file = await syncStoreFile(cid);
-      const fileOrder = maybeFileOrders[cidToString(cid)].unwrap();
-      const currentReplicaIds = fileOrder.replicas.map((node) =>
+    ...newLiquidateCids.map(async (cid) => {
+      const file = await syncFile(cid);
+      const fileInfo = maybeFiles[cidToString(cid)].unwrap();
+      const currentReplicaIds = fileInfo.replicas.map((node) =>
         getReplicaId(node, cid)
       );
-      const order = StorageFileOrder.create({
-        id: getOrderId(cid),
-        fee: fileOrder.fee.toBigInt(),
-        fileSize: fileOrder.fileSize.toBigInt(),
-        expireAt: fileOrder.expireAt.toBigInt(),
-        renew: 0,
+      const liquidation = StorageFileLiquidation.create({
+        id: getLiquidationId(cid),
+        fee: fileInfo.fee.toBigInt(),
+        startAt: blockNumber,
+        expireAt: fileInfo.expireAt.toBigInt(),
         currentReplicaIds,
-        addedAt: blockNumber,
-        storeFileId: file.id,
+        fileId: file.id,
       });
-      file.currentOrderId = order.id;
-      await order.save();
+      file.currentLiquidationId = liquidation.id;
+      await liquidation.save();
       await file.save();
       await Promise.all(
-        fileOrder.replicas.map(async (node) => {
+        fileInfo.replicas.map(async (node) => {
           const repoterNode = await ensureNode(node);
           const replica = StorageFileReplica.create({
             id: getReplicaId(node, cid),
             addedAt: blockNumber,
-            orderId: order.id,
-            reporterId: repoterNode.id,
-            storeFileId: file.id,
+            liquidationId: liquidation.id,
+            machineId: repoterNode.id,
+            fileId: file.id,
           });
           await replica.save();
         })
@@ -203,25 +199,32 @@ export async function report({
     }),
   ]);
   await Promise.all([
-    ...maybeChangeFiles.map(async (cid) => {
-      const maybeFileOrder = maybeFileOrders[cidToString(cid)];
-      if (maybeFileOrder.isNone) return;
-      const fileOrder = maybeFileOrder.unwrap();
-      const file = await StorageStoreFile.get(cidToString(cid));
-      if (!file || !file.currentOrderId) return;
-      const order = await StorageFileOrder.get(file.currentOrderId);
-      if (order.expireAt !== fileOrder.expireAt.toBigInt()) {
-        order.renew += 1;
-        order.expireAt = fileOrder.expireAt.toBigInt();
+    ...maybeChangeCids.map(async (cid) => {
+      const maybeFile = maybeFiles[cidToString(cid)];
+      if (maybeFile.isNone) return;
+      const fileInfo = maybeFile.unwrap();
+      const file = await StorageFile.get(cidToString(cid));
+      if (!file || !file.currentLiquidationId) return;
+      let liquidation = await StorageFileLiquidation.get(
+        file.currentLiquidationId
+      );
+      const oldCurrentReplicaIds = liquidation.currentReplicaIds;
+      if (liquidation.expireAt !== fileInfo.expireAt.toBigInt()) {
+        liquidation = StorageFileLiquidation.create({
+          id: getLiquidationId(cid),
+          fee: fileInfo.fee.toBigInt(),
+          startAt: blockNumber,
+          expireAt: fileInfo.expireAt.toBigInt(),
+          fileId: file.id,
+        });
       }
       const newCurrentReplicaIds = [];
-      const toRemoveReplicas = order.currentReplicaIds.slice();
       const toAddReplicas = [];
-      for (const node of fileOrder.replicas.map((v) => v.toString())) {
-        const index = toRemoveReplicas.findIndex((v) => v.startsWith(node));
+      for (const node of fileInfo.replicas.map((v) => v.toString())) {
+        const index = oldCurrentReplicaIds.findIndex((v) => v.startsWith(node));
         if (index > -1) {
-          newCurrentReplicaIds.push(toRemoveReplicas[index]);
-          toRemoveReplicas.splice(index, 1);
+          newCurrentReplicaIds.push(oldCurrentReplicaIds[index]);
+          oldCurrentReplicaIds.splice(index, 1);
         } else {
           toAddReplicas.push(node);
         }
@@ -233,14 +236,14 @@ export async function report({
           const replica = StorageFileReplica.create({
             id,
             addedAt: blockNumber,
-            orderId: order.id,
-            reporterId: repoterNode.id,
-            storeFileId: file.id,
+            liquidationId: liquidation.id,
+            machineId: repoterNode.id,
+            fileId: file.id,
           });
           await replica.save();
           newCurrentReplicaIds.push(id);
         }),
-        ...toRemoveReplicas.map(async (id) => {
+        ...oldCurrentReplicaIds.map(async (id) => {
           const replica = await StorageFileReplica.get(id);
           if (replica) {
             replica.deletedAt = blockNumber;
@@ -248,16 +251,18 @@ export async function report({
           }
         }),
       ]);
-      order.currentReplicaIds = newCurrentReplicaIds;
-      await order.save();
+      liquidation.currentReplicaIds = newCurrentReplicaIds;
+      await liquidation.save();
     }),
     ...delFiles.map(async (cid) => {
-      const maybeFileOrder = maybeFileOrders[cidToString(cid)];
-      if (maybeFileOrder.isNone) return;
-      const file = await StorageStoreFile.get(cidToString(cid));
-      if (!file || !file.currentOrderId) return;
-      const order = await StorageFileOrder.get(file.currentOrderId);
-      const replicaId = order.currentReplicaIds.find(
+      const maybeFile = maybeFiles[cidToString(cid)];
+      if (maybeFile.isNone) return;
+      const file = await StorageFile.get(cidToString(cid));
+      if (!file || !file.currentLiquidationId) return;
+      const liquidation = await StorageFileLiquidation.get(
+        file.currentLiquidationId
+      );
+      const replicaId = liquidation.currentReplicaIds.find(
         (v) => v.split("-")[1] === cidToString(cid)
       );
       if (replicaId) {
@@ -271,20 +276,26 @@ export async function report({
   ]);
 }
 
-async function syncStoreFile(cid: Bytes) {
+async function syncFile(cid: Bytes) {
   const id = cidToString(cid);
-  let file = await StorageStoreFile.get(id);
+  let file = await StorageFile.get(id);
   if (!file) {
-    file = new StorageStoreFile(id);
+    file = new StorageFile(id);
   }
-  const maybeStoreFile = await api.query.fileStorage.storeFiles(cid);
-  const storeFile = maybeStoreFile.unwrap();
-  file.reserved = storeFile.reserved.toBigInt();
-  file.baseFee = storeFile.baseFee.toBigInt();
-  file.fileSize = storeFile.fileSize.toBigInt();
-  file.addedAt = storeFile.addedAt.toBigInt();
-  if (!file.firstAddedAt) {
-    file.firstAddedAt = file.addedAt;
+  const maybeFileInfo = await api.query.fileStorage.files(cid);
+  const fileInfo = maybeFileInfo.unwrap();
+  file.reserved = fileInfo.reserved.toBigInt();
+  file.baseFee = fileInfo.baseFee.toBigInt();
+  file.fileSize = fileInfo.fileSize.toBigInt();
+  file.fee = fileInfo.fee.toBigInt();
+  file.expireAt = fileInfo.expireAt.toBigInt();
+  if (file.addedAt !== fileInfo.addedAt.toBigInt()) {
+    file.addedAt = fileInfo.addedAt.toBigInt();
+    if (Number.isInteger(file.addIndex)) {
+      file.addIndex = file.addIndex + 1;
+    } else {
+      file.addIndex = 0;
+    }
   }
   if (file.baseFee === BigInt(0)) {
     file.status = StorageFileStatus.STORING;
@@ -326,6 +337,7 @@ async function syncNode(owner: AccountId32, machineId: Bytes) {
   node.used = nodeInfo.used.toBigInt();
   node.power = nodeInfo.power.toBigInt();
   node.reportedAt = nodeInfo.reportedAt.toBigInt();
+  node.prevReportedAt = nodeInfo.prevReportedAt.toBigInt();
   await node.save();
   return node;
 }
@@ -345,53 +357,46 @@ async function ensureNode(owner: AccountId32 | string, machineId?: Bytes) {
   return node;
 }
 
-async function getReportRound(roundIndex: AnyNumber) {
-  let reportRound = await StorageReportRound.get(roundIndex.toString());
-  if (!reportRound) {
-    reportRound = new StorageReportRound(roundIndex.toString());
-    const [roundReward, roundSummary] = (await api.queryMulti([
-      [api.query.fileStorage.roundsReward, roundIndex],
-      [api.query.fileStorage.roundsSummary, roundIndex],
-    ])) as [PalletStorageRewardInfo, PalletStorageSummaryStats];
-    reportRound.used = roundSummary.used.toBigInt();
-    reportRound.power = roundSummary.power.toBigInt();
-    reportRound.storeReward = roundReward.storeReward.toBigInt();
-    reportRound.mineReward = roundReward.mineReward.toBigInt();
-    reportRound.paidMineReard = roundReward.paidMineReward.toBigInt();
-    reportRound.paidStoreReward = roundReward.paidStoreReward.toBigInt();
-    reportRound.mine = BigInt(0);
-    await reportRound.save();
+async function getStorageSession(index: AnyNumber) {
+  let session = await StorageSession.get(index.toString());
+  if (!session) {
+    session = new StorageSession(index.toString());
+    const summary = await api.query.fileStorage.summarys(index);
+    session.used = summary.used.toBigInt();
+    session.power = summary.power.toBigInt();
+    session.storeReward = summary.storeReward.toBigInt();
+    session.mineReward = summary.mineReward.toBigInt();
+    session.paidMineReard = summary.paidMineReward.toBigInt();
+    session.paidStoreReward = summary.paidStoreReward.toBigInt();
+    session.mine = BigInt(0);
+    session.nodes = summary.count.toNumber();
+    await session.save();
   }
-  return reportRound;
+  return session;
 }
 
-async function batchQueryFileOrders(cids: Bytes[]): Promise<BatchFileOrders> {
+async function batchQueryFiles(cids: Bytes[]): Promise<BatchFiles> {
   if (cids.length === 0) return {};
   const allCids = Array.from(new Set(cids.map((v) => cidToString(v))));
-  const maybeFileOrders: Option<PalletStorageFileOrder>[] =
-    await api.queryMulti(
-      allCids.map((cid) => {
-        return [api.query.fileStorage.fileOrders, cid];
-      })
-    );
+  const maybeFiles: Option<PalletStorageFileInfo>[] = await api.queryMulti(
+    allCids.map((cid) => {
+      return [api.query.fileStorage.files, cid];
+    })
+  );
   return allCids.reduce((acc, cur, index) => {
-    acc[cur] = maybeFileOrders[index];
+    acc[cur] = maybeFiles[index];
     return acc;
-  }, {} as BatchFileOrders);
+  }, {} as BatchFiles);
 }
 
-interface BatchFileOrders {
-  [k: string]: Option<PalletStorageFileOrder>;
+interface BatchFiles {
+  [k: string]: Option<PalletStorageFileInfo>;
 }
 
-async function setFileOrderDeteleted(
-  file: StorageStoreFile,
-  blockNumber: bigint
-) {
-  const order = await StorageFileOrder.get(file.currentOrderId);
-  order.deletedAt = blockNumber;
-  await order.save();
-  const replicas = await StorageFileReplica.getByOrderId(order.id);
+async function setFileDeteleted(file: StorageFile, blockNumber: bigint) {
+  const liquidation = await StorageFile.get(file.currentLiquidationId);
+  await liquidation.save();
+  const replicas = await StorageFileReplica.getByLiquidationId(liquidation.id);
   await Promise.all(
     replicas.map(async (replica) => {
       if (!replica.deletedAt) {
