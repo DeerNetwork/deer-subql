@@ -138,6 +138,7 @@ export async function report({
     shareStoreReward: shareStoreReward.toBigInt(),
     directStoreReward: DirectStoreReward.toBigInt(),
     slash: slash.toBigInt(),
+    reportAt: blockNumber,
     extrinsicId: call.extrinsicId,
     timestamp: call.timestamp,
   });

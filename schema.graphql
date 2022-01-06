@@ -374,6 +374,7 @@ type StorageReport @entity {
   shareStoreReward: BigInt
   directStoreReward: BigInt
   slash: BigInt
+  reportAt: BigInt
 
   extrinsic: Extrinsic
   timestamp: Date
