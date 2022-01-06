@@ -61,16 +61,19 @@ export const newSession: EventHandler = async ({ rawEvent, event }) => {
   ];
   const currentIndex = newSessionIndex.sub(new BN(1));
   const prevIndex = newSessionIndex.sub(new BN(2));
-  const [prevSummary, currentSummary] = (await api.queryMulti([
-    [api.query.fileStorage.summarys, prevIndex],
-    [api.query.fileStorage.summarys, prevIndex],
-  ])) as [PalletStorageSummaryInfo, PalletStorageSummaryInfo];
+  const [prevSummary, currentSummary, storagePotReserved] =
+    (await api.queryMulti([
+      [api.query.fileStorage.summarys, prevIndex],
+      [api.query.fileStorage.summarys, prevIndex],
+      [api.query.fileStorage.storagePotReserved],
+    ])) as [PalletStorageSummaryInfo, PalletStorageSummaryInfo, Balance];
   const currentSession = await getStorageSession(currentIndex);
   currentSession.power = currentSummary.power.toBigInt();
   currentSession.used = currentSummary.used.toBigInt();
   currentSession.mineReward = currentSummary.mineReward.toBigInt();
   currentSession.storeReward = currentSummary.storeReward.toBigInt();
   currentSession.endedAt = event.blockNumber;
+  currentSession.potReserved = storagePotReserved.toBigInt();
   currentSession.mine = mine.toBigInt();
   await currentSession.save();
   const prevSession = await getStorageSession(prevIndex);
