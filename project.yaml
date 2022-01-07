@@ -9,7 +9,7 @@ network:
   endpoint: 'wss://mainnet-ws.deernetwork.vip'
   genesisHash: "0x037c59d6ce8a86644f2b56caf38a04635a8d74ef435e49045ea66ea5e4e18faa"
   chaintypes:
-    file: ./node_modules/@deernetwork/type-definitions/dist/types.json
+    file: ./node_modules/@deernetwork/type-definitions/types.json
 dataSources:
   - kind: substrate/Runtime
     startBlock: 1
