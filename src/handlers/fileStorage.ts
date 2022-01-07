@@ -102,7 +102,7 @@ export async function report({
     ({ event }) =>
       event.section === "fileStorage" && event.method === "FileDeleted"
   );
-  const storeFileNewOrderEvents = rawExtrinsic.events.filter(
+  const storeFileStoredEvents = rawExtrinsic.events.filter(
     ({ event }) =>
       event.section === "fileStorage" && event.method === "FileStored"
   );
@@ -146,7 +146,7 @@ export async function report({
   const removeCids: Bytes[] = storeFileDeletedEvents.map(
     ({ event }) => event.data[0] as unknown as Bytes
   );
-  const newLiquidateCids: Bytes[] = storeFileNewOrderEvents.map(
+  const newLiquidateCids: Bytes[] = storeFileStoredEvents.map(
     ({ event }) => event.data[0] as unknown as Bytes
   );
   const maybeChangeCids = [...addFiles.map(([cid]) => cid), ...liquidateFiles];
