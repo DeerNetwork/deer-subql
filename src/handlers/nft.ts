@@ -1,6 +1,7 @@
 import { u32, u64, Bytes, Compact } from "@polkadot/types";
 import { AccountId32 } from "@polkadot/types/interfaces/runtime";
 import { isUtf8 } from "@polkadot/util";
+import { Balance } from "@polkadot/types/interfaces";
 
 import { PalletNftTransferReason } from "@polkadot/types/lookup";
 import { EventHandler } from "./types";
@@ -30,14 +31,15 @@ export const createNftTransferHistory: EventHandler = async ({
   rawEvent,
   event,
 }) => {
-  const [classId, localTokenId, quantity, from, to, reason] = rawEvent.event
-    .data as unknown as [
+  const [classId, localTokenId, quantity, from, to, reason, price] = rawEvent
+    .event.data as unknown as [
     u32,
     u32,
     u64,
     AccountId32,
     AccountId32,
-    PalletNftTransferReason
+    PalletNftTransferReason,
+    Balance
   ];
   const nftToken = await getNftToken(classId, localTokenId);
 
@@ -54,6 +56,7 @@ export const createNftTransferHistory: EventHandler = async ({
     fromId: fromAccount.id,
     toId: toAccount.id,
     reason: reason.toString(),
+    price: price.toBigInt(),
     extrinsicId: event.extrinsicId,
     timestamp: event.timestamp,
   });

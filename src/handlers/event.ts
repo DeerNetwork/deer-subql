@@ -72,7 +72,7 @@ dispatch.batchRegist([
   { key: "fileStorage-NewSession", handler: newSession },
 ]);
 
-export async function ensureEvnet(event: SubstrateEvent) {
+export async function ensureEvent(event: SubstrateEvent) {
   const block = await ensureBlock(event.block);
 
   const idx = event.idx;
@@ -98,7 +98,7 @@ export async function createEvent(event: SubstrateEvent) {
     ? ensuerExtrinsic(event.extrinsic)
     : undefined);
 
-  const data = await ensureEvnet(event);
+  const data = await ensureEvent(event);
 
   const section = event.event.section;
   const method = event.event.method;

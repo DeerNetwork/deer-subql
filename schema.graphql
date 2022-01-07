@@ -160,6 +160,7 @@ type NftTokenTransfer @entity {
 
   quantity: BigInt
   reason: String
+  price: BigInt
 
   extrinsic: Extrinsic
   timestamp: Date
