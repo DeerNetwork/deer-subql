@@ -355,6 +355,7 @@ type StorageSession @entity {
   paidStoreReward: BigInt
   mine: BigInt
   endedAt: BigInt
+  potReserved: BigInt
   nodes: Int
 
   reports: [StorageReport] @derivedFrom(field: "session")
