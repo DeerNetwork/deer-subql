@@ -307,6 +307,7 @@ type StorageFileFund @entity {
 type StorageFileLiquidation @entity {
   id: ID!
 
+  reserved: BigInt
   fee: BigInt
   startAt: BigInt
   liquidateAt: BigInt

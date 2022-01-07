@@ -220,7 +220,7 @@ export async function report({
       const maybeFile = maybeFiles[cidToString(cid)];
       if (maybeFile.isNone) return;
       const fileInfo = maybeFile.unwrap();
-      const file = await StorageFile.get(cidToString(cid));
+      const file = await syncFile(cid);
       if (!file || !file.currentLiquidationId) return;
       let liquidation = await StorageFileLiquidation.get(
         file.currentLiquidationId
@@ -234,6 +234,7 @@ export async function report({
         liquidation = StorageFileLiquidation.create({
           id: getLiquidationId(file),
           fee: fileInfo.fee.toBigInt(),
+          reserved: fileInfo.reserved.toBigInt(),
           startAt: blockNumber,
           liquidateAt: fileInfo.liquidateAt.toBigInt(),
           fileId: file.id,

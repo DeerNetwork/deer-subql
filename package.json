@@ -17,12 +17,16 @@
     "project.yaml"
   ],
   "license": "MIT",
-  "devDependencies": {
+  "dependencies": {
+    "@deernetwork/type-definitions": "^0.4",
     "@polkadot/api": "^7",
+    "@subql/types": "^0.12.0",
+    "multiformats": "^9.5.4"
+  },
+  "devDependencies": {
     "@subql/cli": "^0.16.2",
     "@subql/node": "^0.26.0",
     "@subql/query": "^0.9.0",
-    "@subql/types": "^0.12.0",
     "@typescript-eslint/eslint-plugin": "^5.4.0",
     "@typescript-eslint/parser": "^5.4.0",
     "eslint": "^8.3.0",
@@ -31,9 +35,5 @@
     "prettier": "^2.4.1",
     "ts-node": "^10.4.0",
     "typescript": "^4.1.3"
-  },
-  "dependencies": {
-    "@deernetwork/type-definitions": "^0.4.42",
-    "multiformats": "^9.5.4"
   }
 }
