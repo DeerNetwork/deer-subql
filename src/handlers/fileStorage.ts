@@ -20,6 +20,7 @@ import {
   PalletStorageFileInfo,
   PalletStorageNodeInfo,
   PalletStorageRegisterInfo,
+  PalletStorageSessionState,
   PalletStorageSummaryInfo,
 } from "@polkadot/types/lookup";
 
@@ -61,24 +62,43 @@ export const newSession: EventHandler = async ({ rawEvent, event }) => {
   ];
   const currentIndex = newSessionIndex.sub(new BN(1));
   const prevIndex = newSessionIndex.sub(new BN(2));
-  const [prevSummary, currentSummary, storagePotReserved] =
+  const [prevSummary, currentSummary, storagePotReserved, newSessionState] =
     (await api.queryMulti([
       [api.query.fileStorage.summarys, prevIndex],
       [api.query.fileStorage.summarys, prevIndex],
       [api.query.fileStorage.storagePotReserved],
-    ])) as [PalletStorageSummaryInfo, PalletStorageSummaryInfo, Balance];
+      [api.query.fileStorage.session],
+    ])) as [
+      PalletStorageSummaryInfo,
+      PalletStorageSummaryInfo,
+      Balance,
+      PalletStorageSessionState
+    ];
+  const newSession = await getStorageSession(newSessionIndex);
+  newSession.beginAt = newSessionState.beginAt.toBigInt();
+  newSession.potReserved = storagePotReserved.toBigInt();
+  await newSession.save();
   const currentSession = await getStorageSession(currentIndex);
+  if (!currentSession.beginAt) {
+    currentSession.beginAt = newSessionState.prevBeginAt.toBigInt();
+  }
   currentSession.power = currentSummary.power.toBigInt();
   currentSession.used = currentSummary.used.toBigInt();
   currentSession.mineReward = currentSummary.mineReward.toBigInt();
   currentSession.storeReward = currentSummary.storeReward.toBigInt();
-  currentSession.endedAt = event.blockNumber;
-  currentSession.potReserved = storagePotReserved.toBigInt();
   currentSession.mine = mine.toBigInt();
   await currentSession.save();
   const prevSession = await getStorageSession(prevIndex);
   prevSession.paidMineReard = prevSummary.paidMineReward.toBigInt();
   prevSession.paidStoreReward = prevSummary.paidStoreReward.toBigInt();
+  if (!prevSession.beginAt) {
+    prevSession.beginAt = BigInt(
+      newSessionState.prevBeginAt
+        .mul(new BN(2))
+        .sub(newSessionState.beginAt.toBn())
+        .toString()
+    );
+  }
   await prevSession.save();
 };
 
@@ -354,6 +374,7 @@ function cidToString(cid: Bytes) {
   } catch {}
   return cid.toString();
 }
+
 async function syncNode(owner: AccountId32, machineId: Bytes) {
   const id = machineId.toString();
   let node = await StorageNode.get(id);
@@ -400,15 +421,6 @@ async function getStorageSession(index: AnyNumber) {
   let session = await StorageSession.get(index.toString());
   if (!session) {
     session = new StorageSession(index.toString());
-    const summary = await api.query.fileStorage.summarys(index);
-    session.used = summary.used.toBigInt();
-    session.power = summary.power.toBigInt();
-    session.storeReward = summary.storeReward.toBigInt();
-    session.mineReward = summary.mineReward.toBigInt();
-    session.paidMineReard = summary.paidMineReward.toBigInt();
-    session.paidStoreReward = summary.paidStoreReward.toBigInt();
-    session.mine = BigInt(0);
-    session.nodes = summary.count.toNumber();
     await session.save();
   }
   return session;

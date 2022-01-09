@@ -356,7 +356,7 @@ type StorageSession @entity {
   paidMineReard: BigInt
   paidStoreReward: BigInt
   mine: BigInt
-  endedAt: BigInt
+  beginAt: BigInt
   potReserved: BigInt
   nodes: Int
 
