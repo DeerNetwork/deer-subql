@@ -65,7 +65,7 @@ export const newSession: EventHandler = async ({ rawEvent, event }) => {
   const [prevSummary, currentSummary, storagePotReserved, newSessionState] =
     (await api.queryMulti([
       [api.query.fileStorage.summarys, prevIndex],
-      [api.query.fileStorage.summarys, prevIndex],
+      [api.query.fileStorage.summarys, currentIndex],
       [api.query.fileStorage.storagePotReserved],
       [api.query.fileStorage.session],
     ])) as [
